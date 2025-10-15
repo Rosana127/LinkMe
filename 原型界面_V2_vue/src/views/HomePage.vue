@@ -64,34 +64,7 @@
       </div>
     </div>
     
-<<<<<<< HEAD
     <!-- 注意：最近活动部分已移至消息中心页面 -->
-=======
-    <!-- 最近活动 -->
-    <div class="recent-activity">
-      <h3 class="section-title">Recent Activity</h3>
-      <div class="activity-list">
-        <div 
-          v-for="activity in recentActivities" 
-          :key="activity.id"
-          class="activity-item"
-        >
-          <img 
-            :src="activity.user.avatar" 
-            :alt="activity.user.name" 
-            class="activity-avatar"
-          >
-          <div class="activity-content">
-            <p class="activity-text">
-              <span class="activity-user">{{ activity.user.name }}</span>
-              {{ activity.action }}
-            </p>
-            <span class="activity-time">{{ activity.time }}</span>
-          </div>
-        </div>
-      </div>
-    </div>
->>>>>>> 4298baf184477cd5bb16677130bd93ae66da9a2b
   </div>
 </template>
 
@@ -143,39 +116,7 @@ const myPosts = ref([
   }
 ])
 
-<<<<<<< HEAD
 // 注意：最近活动数据已移至ChatPage.vue
-=======
-const recentActivities = ref([
-  {
-    id: 1,
-    user: {
-      name: 'Frank',
-      avatar: 'https://modao.cc/ai/uploads/ai_pics/32/327754/aigp_1758963760.jpeg'
-    },
-    action: 'liked your post',
-    time: '2 minutes ago'
-  },
-  {
-    id: 2,
-    user: {
-      name: 'tu',
-      avatar: 'https://modao.cc/ai/uploads/ai_pics/32/327752/aigp_1758963757.jpeg'
-    },
-    action: 'started following you',
-    time: '1 hour ago'
-  },
-  {
-    id: 3,
-    user: {
-      name: 'ha',
-      avatar: 'https://modao.cc/ai/uploads/ai_pics/32/327753/aigp_1758963759.jpeg'
-    },
-    action: 'commented on your post',
-    time: '3 hours ago'
-  }
-])
->>>>>>> 4298baf184477cd5bb16677130bd93ae66da9a2b
 </script>
 
 <style scoped>

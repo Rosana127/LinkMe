@@ -105,12 +105,8 @@
     <div class="w-1/3">
       <div class="bg-white rounded-xl p-6 shadow-sm mb-6">
         <h4 class="font-bold mb-4">今日匹配统计</h4>
-<<<<<<< HEAD
         <!-- 修复：增加饼图容器的高度并添加内边距 -->
         <div ref="matchChart" style="width: 100%; height: 300px; padding-bottom: 20px;"></div>
-=======
-        <div ref="matchChart" style="width: 100%; height: 250px;"></div>
->>>>>>> 4298baf184477cd5bb16677130bd93ae66da9a2b
       </div>
       
       <div class="bg-white rounded-xl p-6 shadow-sm">
@@ -196,10 +192,7 @@ const suggestions = ref([
 ])
 
 const matchChart = ref(null)
-<<<<<<< HEAD
 let chartInstance = null // 添加图表实例变量
-=======
->>>>>>> 4298baf184477cd5bb16677130bd93ae66da9a2b
 
 const swipeLeft = () => {
   cardClass.value = 'swipe-left'
@@ -228,7 +221,6 @@ const superLike = () => {
   }, 1500)
 }
 
-<<<<<<< HEAD
 // 保留更新后的图表初始化函数
 const initMatchChart = () => {
   if (!matchChart.value) return
@@ -313,63 +305,3 @@ const handleResize = () => {
   padding-bottom: 40px;
 }
 </style>
-=======
-const initMatchChart = () => {
-  if (matchChart.value) {
-    const chart = echarts.init(matchChart.value)
-    const option = {
-      tooltip: {
-        trigger: 'item'
-      },
-      legend: {
-        bottom: '0',
-        left: 'center',
-        textStyle: {
-          fontSize: 12
-        }
-      },
-      series: [
-        {
-          name: '匹配数据',
-          type: 'pie',
-          radius: ['45%', '70%'],
-          avoidLabelOverlap: false,
-          itemStyle: {
-            borderRadius: 10,
-            borderColor: '#fff',
-            borderWidth: 2
-          },
-          label: {
-            show: false,
-            position: 'center'
-          },
-          emphasis: {
-            label: {
-              show: true,
-              fontSize: '18',
-              fontWeight: 'bold'
-            }
-          },
-          labelLine: {
-            show: false
-          },
-          data: [
-            { value: 42, name: '共同兴趣', itemStyle: { color: '#5e72e4' } },
-            { value: 28, name: '性格匹配', itemStyle: { color: '#00cba9' } },
-            { value: 16, name: '价值观', itemStyle: { color: '#11cdef' } },
-            { value: 14, name: '其他', itemStyle: { color: '#fb6340' } }
-          ]
-        }
-      ]
-    }
-    chart.setOption(option)
-  }
-}
-
-onMounted(() => {
-  nextTick(() => {
-    initMatchChart()
-  })
-})
-</script>
->>>>>>> 4298baf184477cd5bb16677130bd93ae66da9a2b
