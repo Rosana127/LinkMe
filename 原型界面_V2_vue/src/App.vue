@@ -115,9 +115,10 @@ import Sidebar from './components/Sidebar.vue'
 
 const route = useRoute()
 
-// 控制右侧栏显示，只在Explore和Saved页面显示
+// 控制右侧栏显示，只在Saved页面显示（去掉了discover页面）
 const showRightSidebar = computed(() => {
-  return ['discover', 'profile'].includes(route.name)
+  // return ['discover', 'profile'].includes(route.name)
+  return ['profile'].includes(route.name)
 })
 
 // Explore页面 - Top Creators
@@ -243,7 +244,7 @@ const topCategories = ref([
 .app-container {
   display: flex;
   min-height: 100vh;
-  background-color: #000000;
+  background-color: #ffffff; /* 修改背景色为白色 */
 }
 
 .main-content {
@@ -281,7 +282,7 @@ const topCategories = ref([
 .section-title {
   font-size: 18px;
   font-weight: bold;
-  color: #ffffff;
+  color: #ffffff; /* 保持文字为白色以确保在深色卡片上的可读性 */
   margin-bottom: 20px;
 }
 

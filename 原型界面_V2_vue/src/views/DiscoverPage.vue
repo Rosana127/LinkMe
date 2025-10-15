@@ -2,10 +2,40 @@
   <div class="explore-page">
     <h1 class="page-title">Explore</h1>
     
-    <!-- 动态流 -->
-    <div class="posts-container">
+    <!-- 分类和搜索区域 -->
+    <div class="category-search-container">
+      <div class="categories">
+        <button 
+          @click="activeCategory = 'recommended'"
+          :class="['category-btn', { active: activeCategory === 'recommended' }]"
+        >
+          推荐
+        </button>
+        <button 
+          @click="activeCategory = 'following'"
+          :class="['category-btn', { active: activeCategory === 'following' }]"
+        >
+          关注
+        </button>
+      </div>
+      
+      <div class="search-container">
+        <input 
+          type="text" 
+          placeholder="搜索..." 
+          class="search-input"
+          v-model="searchQuery"
+        >
+        <button class="search-btn">
+          <span class="iconify" data-icon="mdi:magnify" data-inline="false"></span>
+        </button>
+      </div>
+    </div>
+    
+    <!-- 动态流 - 修改为两列布局 -->
+    <div class="posts-grid">
       <div 
-        v-for="post in posts" 
+        v-for="post in filteredPosts" 
         :key="post.id"
         class="post-card"
       >
@@ -59,9 +89,15 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 
-const posts = ref([
+// 当前激活的分类
+const activeCategory = ref('recommended')
+// 搜索查询
+const searchQuery = ref('')
+
+// 推荐的帖子数据
+const recommendedPosts = ref([
   {
     id: 1,
     author: {
@@ -105,11 +141,73 @@ const posts = ref([
     likes: 156
   }
 ])
+
+// 关注的帖子数据
+const followingPosts = ref([
+  {
+    id: 4,
+    author: {
+      name: 'ha',
+      handle: 'ha',
+      avatar: 'https://modao.cc/ai/uploads/ai_pics/32/327753/aigp_1758963759.jpeg'
+    },
+    time: '1 hour ago',
+    location: 'Paris',
+    caption: 'Morning coffee in Paris',
+    hashtags: '#Coffee #Paris #Morning',
+    image: 'https://modao.cc/ai/uploads/ai_pics/32/327749/aigp_1758963751.jpeg',
+    likes: 89
+  },
+  {
+    id: 5,
+    author: {
+      name: 'Ck',
+      handle: 'ck',
+      avatar: 'https://modao.cc/ai/uploads/ai_pics/32/327748/aigp_1758963749.jpeg'
+    },
+    time: '30 minutes ago',
+    location: 'New York',
+    caption: 'Weekend vibes in the city',
+    hashtags: '#Weekend #NYC #City',
+    image: 'https://modao.cc/ai/uploads/ai_pics/32/327748/aigp_1758963749.jpeg',
+    likes: 123
+  },
+  {
+    id: 6,
+    author: {
+      name: 'pony',
+      handle: 'pony',
+      avatar: 'https://modao.cc/ai/uploads/ai_pics/32/327747/aigp_1758963748.jpeg'
+    },
+    time: '5 hours ago',
+    location: 'London',
+    caption: 'Nature walk in the park',
+    hashtags: '#Nature #Walk #London',
+    image: 'https://modao.cc/ai/uploads/ai_pics/32/327747/aigp_1758963748.jpeg',
+    likes: 78
+  }
+])
+
+// 根据当前分类和搜索词过滤帖子
+const filteredPosts = computed(() => {
+  let posts = activeCategory.value === 'recommended' ? recommendedPosts.value : followingPosts.value
+  
+  if (searchQuery.value) {
+    const query = searchQuery.value.toLowerCase()
+    posts = posts.filter(post => 
+      post.caption.toLowerCase().includes(query) || 
+      post.hashtags.toLowerCase().includes(query) ||
+      post.author.name.toLowerCase().includes(query)
+    )
+  }
+  
+  return posts
+})
 </script>
 
 <style scoped>
 .explore-page {
-  max-width: 600px;
+  max-width: 1000px;
   margin: 0 auto;
 }
 
@@ -120,9 +218,72 @@ const posts = ref([
   margin-bottom: 30px;
 }
 
-.posts-container {
+/* 分类和搜索区域样式 */
+.category-search-container {
   display: flex;
-  flex-direction: column;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 30px;
+}
+
+.categories {
+  display: flex;
+  gap: 10px;
+}
+
+.category-btn {
+  padding: 10px 20px;
+  border-radius: 20px;
+  background: #1a1a1a;
+  border: none;
+  color: #ffffff;
+  font-size: 16px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.category-btn:hover {
+  background: #222222;
+}
+
+.category-btn.active {
+  background: #8b5cf6;
+}
+
+.search-container {
+  position: relative;
+}
+
+.search-input {
+  width: 200px;
+  padding: 10px 40px 10px 15px;
+  border-radius: 20px;
+  background: #1a1a1a;
+  border: none;
+  color: #ffffff;
+  font-size: 14px;
+}
+
+.search-input:focus {
+  outline: none;
+  background: #222222;
+}
+
+.search-btn {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  color: #888888;
+  cursor: pointer;
+}
+
+/* 帖子网格布局 - 两列排列 */
+.posts-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
   gap: 20px;
 }
 
@@ -137,6 +298,7 @@ const posts = ref([
   background-color: #222222;
 }
 
+/* 其他样式保持不变 */
 .post-header {
   display: flex;
   justify-content: space-between;
@@ -177,17 +339,12 @@ const posts = ref([
   display: flex;
   flex-direction: column;
   align-items: flex-end;
-  gap: 4px;
 }
 
-.timestamp {
+.timestamp, .location {
   color: #888888;
-  font-size: 14px;
-}
-
-.location {
-  color: #888888;
-  font-size: 14px;
+  font-size: 12px;
+  margin-bottom: 2px;
 }
 
 .post-content {
@@ -196,14 +353,14 @@ const posts = ref([
 
 .post-caption {
   color: #ffffff;
-  font-size: 16px;
+  font-size: 14px;
   line-height: 1.5;
   margin-bottom: 8px;
 }
 
 .hashtags {
-  color: #888888;
-  font-size: 14px;
+  color: #8b5cf6;
+  font-size: 12px;
 }
 
 .post-image {
@@ -211,6 +368,7 @@ const posts = ref([
 }
 
 .post-image img {
+  width: 100%;
   border-radius: 8px;
   max-height: 400px;
   object-fit: cover;
