@@ -64,6 +64,9 @@
       </div>
     </div>
     
+<<<<<<< HEAD
+    <!-- 注意：最近活动部分已移至消息中心页面 -->
+=======
     <!-- 最近活动 -->
     <div class="recent-activity">
       <h3 class="section-title">Recent Activity</h3>
@@ -88,6 +91,7 @@
         </div>
       </div>
     </div>
+>>>>>>> 4298baf184477cd5bb16677130bd93ae66da9a2b
   </div>
 </template>
 
@@ -139,6 +143,9 @@ const myPosts = ref([
   }
 ])
 
+<<<<<<< HEAD
+// 注意：最近活动数据已移至ChatPage.vue
+=======
 const recentActivities = ref([
   {
     id: 1,
@@ -168,6 +175,7 @@ const recentActivities = ref([
     time: '3 hours ago'
   }
 ])
+>>>>>>> 4298baf184477cd5bb16677130bd93ae66da9a2b
 </script>
 
 <style scoped>

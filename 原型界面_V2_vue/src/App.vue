@@ -13,6 +13,10 @@
         
         <!-- 右侧栏 - 根据页面显示不同内容 -->
         <div class="right-sidebar" v-if="showRightSidebar">
+<<<<<<< HEAD
+          <!-- Explore页面 - Top Creators 和原Home页面内容 -->
+          <div v-if="route.name === 'discover'" class="recommendation-section">
+=======
           <!-- Home页面 - 推荐用户和活动 -->
           <div v-if="route.name === 'home'" class="recommendation-section">
             <h3 class="section-title">Suggested for you</h3>
@@ -48,6 +52,7 @@
 
           <!-- Explore页面 - Top Creators -->
           <div v-else-if="route.name === 'discover'" class="recommendation-section">
+>>>>>>> 4298baf184477cd5bb16677130bd93ae66da9a2b
             <h3 class="section-title">Top Creators</h3>
             <div class="creators-grid">
               <div 
@@ -69,9 +74,47 @@
                 <button class="follow-btn">Follow</button>
               </div>
             </div>
+<<<<<<< HEAD
+            
+            <!-- 原Home页面内容 -->
+            <div class="mt-6 pt-6 border-t border-gray-200">
+              <h3 class="section-title">Suggested for you</h3>
+              <div class="creators-grid">
+                <div 
+                  v-for="user in suggestedUsers" 
+                  :key="user.id"
+                  class="creator-card"
+                >
+                  <div class="creator-avatar">
+                    <img 
+                      :src="user.avatar" 
+                      :alt="user.name"
+                      class="w-12 h-12 rounded-full object-cover"
+                    >
+                  </div>
+                  <div class="creator-info">
+                    <div class="creator-name">{{ user.name }}</div>
+                    <div class="creator-handle">@{{ user.handle }}</div>
+                  </div>
+                  <button class="follow-btn">Follow</button>
+                </div>
+              </div>
+              
+              <div class="activity-summary">
+                <h4 class="summary-title">Recent Activity</h4>
+                <div class="activity-item" v-for="activity in recentActivity" :key="activity.id">
+                  <div class="activity-text">{{ activity.text }}</div>
+                  <div class="activity-time">{{ activity.time }}</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+=======
           </div>
 
 
+>>>>>>> 4298baf184477cd5bb16677130bd93ae66da9a2b
           <!-- Saved页面 - 收藏统计 -->
           <div v-else-if="route.name === 'profile'" class="recommendation-section">
             <h3 class="section-title">Saved Stats</h3>
@@ -116,9 +159,15 @@ import Sidebar from './components/Sidebar.vue'
 
 const route = useRoute()
 
+<<<<<<< HEAD
+// 控制右侧栏显示，只在Explore和Saved页面显示
+const showRightSidebar = computed(() => {
+  return ['discover', 'profile'].includes(route.name)
+=======
 // 控制右侧栏显示，只在Home、Explore和Saved页面显示
 const showRightSidebar = computed(() => {
   return ['home', 'discover', 'profile'].includes(route.name)
+>>>>>>> 4298baf184477cd5bb16677130bd93ae66da9a2b
 })
 
 // Explore页面 - Top Creators
@@ -173,7 +222,11 @@ const topCreators = ref([
   }
 ])
 
+<<<<<<< HEAD
+// 推荐用户 (现在显示在Explore页面)
+=======
 // Home页面 - 推荐用户
+>>>>>>> 4298baf184477cd5bb16677130bd93ae66da9a2b
 const suggestedUsers = ref([
   {
     id: 1,
@@ -195,7 +248,11 @@ const suggestedUsers = ref([
   }
 ])
 
+<<<<<<< HEAD
+// 最近活动 (现在显示在Explore页面)
+=======
 // Home页面 - 最近活动
+>>>>>>> 4298baf184477cd5bb16677130bd93ae66da9a2b
 const recentActivity = ref([
   {
     id: 1,
@@ -225,7 +282,16 @@ const topCategories = ref([
   {
     name: 'Travel',
     count: 8,
+<<<<<<< HEAD
+    icon: 'mdi:map'
+  },
+  {
+    name: 'Music',
+    count: 5,
+    icon: 'mdi:music'
+=======
     icon: 'mdi:airplane'
+>>>>>>> 4298baf184477cd5bb16677130bd93ae66da9a2b
   },
   {
     name: 'Food',
@@ -240,13 +306,21 @@ const topCategories = ref([
   display: flex;
   min-height: 100vh;
   background-color: #000000;
+<<<<<<< HEAD
+=======
   color: #ffffff;
+>>>>>>> 4298baf184477cd5bb16677130bd93ae66da9a2b
 }
 
 .main-content {
   flex: 1;
+<<<<<<< HEAD
+  padding: 20px;
+  margin-left: 260px;
+=======
   margin-left: 280px; /* 侧边栏宽度 */
   padding: 20px;
+>>>>>>> 4298baf184477cd5bb16677130bd93ae66da9a2b
 }
 
 .content-wrapper {
@@ -258,23 +332,41 @@ const topCategories = ref([
 
 .main-feed {
   flex: 1;
+<<<<<<< HEAD
+=======
   max-width: 600px;
+>>>>>>> 4298baf184477cd5bb16677130bd93ae66da9a2b
 }
 
 .right-sidebar {
   width: 300px;
+<<<<<<< HEAD
+  position: sticky;
+  top: 20px;
+  align-self: flex-start;
+  height: calc(100vh - 40px);
+=======
   flex-shrink: 0;
+>>>>>>> 4298baf184477cd5bb16677130bd93ae66da9a2b
 }
 
 .recommendation-section {
   background-color: #1a1a1a;
   border-radius: 12px;
   padding: 20px;
+<<<<<<< HEAD
+  margin-bottom: 20px;
+}
+
+.section-title {
+  font-size: 18px;
+=======
   margin-top: 20px;
 }
 
 .section-title {
   font-size: 24px;
+>>>>>>> 4298baf184477cd5bb16677130bd93ae66da9a2b
   font-weight: bold;
   color: #ffffff;
   margin-bottom: 20px;
@@ -284,12 +376,31 @@ const topCategories = ref([
   display: flex;
   flex-direction: column;
   gap: 12px;
+<<<<<<< HEAD
+  margin-bottom: 20px;
+=======
+>>>>>>> 4298baf184477cd5bb16677130bd93ae66da9a2b
 }
 
 .creator-card {
   display: flex;
   align-items: center;
   gap: 12px;
+<<<<<<< HEAD
+}
+
+.creator-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  overflow: hidden;
+}
+
+.creator-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+=======
   padding: 12px;
   background-color: #2a2a2a;
   border-radius: 8px;
@@ -298,6 +409,7 @@ const topCategories = ref([
 
 .creator-card:hover {
   background-color: #333333;
+>>>>>>> 4298baf184477cd5bb16677130bd93ae66da9a2b
 }
 
 .creator-info {
@@ -319,30 +431,48 @@ const topCategories = ref([
   background-color: #8b5cf6;
   color: #ffffff;
   border: none;
+<<<<<<< HEAD
+  border-radius: 6px;
+  padding: 4px 12px;
+  font-size: 12px;
+  font-weight: 500;
+=======
   padding: 6px 16px;
   border-radius: 20px;
   font-size: 12px;
   font-weight: 600;
   cursor: pointer;
   transition: background-color 0.2s;
+>>>>>>> 4298baf184477cd5bb16677130bd93ae66da9a2b
 }
 
 .follow-btn:hover {
   background-color: #7c3aed;
 }
 
+<<<<<<< HEAD
+.activity-summary {
+  margin-top: 20px;
+=======
 /* Home页面样式 */
 .activity-summary {
   margin-top: 30px;
   padding-top: 20px;
   border-top: 1px solid #333333;
+>>>>>>> 4298baf184477cd5bb16677130bd93ae66da9a2b
 }
 
 .summary-title {
   font-size: 16px;
+<<<<<<< HEAD
+  font-weight: 600;
+  color: #ffffff;
+  margin-bottom: 12px;
+=======
   font-weight: bold;
   color: #ffffff;
   margin-bottom: 16px;
+>>>>>>> 4298baf184477cd5bb16677130bd93ae66da9a2b
 }
 
 .activity-item {
@@ -360,8 +490,11 @@ const topCategories = ref([
   font-size: 12px;
 }
 
+<<<<<<< HEAD
+=======
 
 /* Saved页面样式 */
+>>>>>>> 4298baf184477cd5bb16677130bd93ae66da9a2b
 .stats-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -370,9 +503,15 @@ const topCategories = ref([
 }
 
 .stat-card {
+<<<<<<< HEAD
+  background-color: #222222;
+  border-radius: 8px;
+  padding: 16px;
+=======
   background-color: #2a2a2a;
   padding: 16px;
   border-radius: 8px;
+>>>>>>> 4298baf184477cd5bb16677130bd93ae66da9a2b
   text-align: center;
 }
 
@@ -383,14 +522,23 @@ const topCategories = ref([
 }
 
 .stat-label {
+<<<<<<< HEAD
+  font-size: 12px;
+  color: #888888;
+=======
   color: #888888;
   font-size: 12px;
+>>>>>>> 4298baf184477cd5bb16677130bd93ae66da9a2b
   margin-top: 4px;
 }
 
 .top-categories {
+<<<<<<< HEAD
+  margin-top: 20px;
+=======
   padding-top: 20px;
   border-top: 1px solid #333333;
+>>>>>>> 4298baf184477cd5bb16677130bd93ae66da9a2b
 }
 
 .category-list {

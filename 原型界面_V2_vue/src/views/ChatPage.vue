@@ -1,5 +1,35 @@
 <template>
   <div class="grid grid-cols-3 gap-6 h-full">
+<<<<<<< HEAD
+    <!-- 聊天列表和活动通知 -->
+    <div class="col-span-1 bg-gray-900 rounded-xl shadow-sm overflow-hidden border border-gray-700 flex flex-col">
+      <!-- 标签页切换 -->
+      <div class="flex border-b border-gray-700">
+        <button 
+          @click="activeTab = 'messages'"
+          :class="['flex-1 py-3 text-center font-medium', activeTab === 'messages' ? 'text-white border-b-2 border-purple-500' : 'text-gray-400']"
+        >
+          聊天
+        </button>
+        <button 
+          @click="activeTab = 'notifications'"
+          :class="['flex-1 py-3 text-center font-medium', activeTab === 'notifications' ? 'text-white border-b-2 border-purple-500' : 'text-gray-400']"
+        >
+          通知
+          <span v-if="unreadNotificationsCount > 0" class="ml-2 px-2 py-0.5 bg-purple-500 text-xs rounded-full">
+            {{ unreadNotificationsCount }}
+          </span>
+        </button>
+      </div>
+      
+      <!-- 搜索框 -->
+      <div class="p-4 border-b border-gray-700">
+        <h3 class="font-bold text-white">{{ activeTab === 'messages' ? '消息中心' : '通知中心' }}</h3>
+        <div class="relative mt-3">
+          <input 
+            type="text" 
+            :placeholder="activeTab === 'messages' ? '搜索聊天...' : '搜索通知...'" 
+=======
     <!-- 聊天列表 -->
     <div class="col-span-1 bg-gray-900 rounded-xl shadow-sm overflow-hidden border border-gray-700">
       <div class="p-4 border-b border-gray-700">
@@ -8,12 +38,77 @@
           <input 
             type="text" 
             placeholder="搜索聊天..." 
+>>>>>>> 4298baf184477cd5bb16677130bd93ae66da9a2b
             class="w-full pl-10 pr-4 py-2 rounded-lg bg-gray-800 border border-gray-600 text-white focus:outline-none focus:border-purple-500"
             v-model="searchQuery"
           >
           <span class="iconify absolute left-3 top-2 text-gray-400" data-icon="mdi:magnify" data-inline="false"></span>
         </div>
       </div>
+<<<<<<< HEAD
+      
+      <!-- 内容区域 - 根据标签页显示不同内容 -->
+      <div class="flex-1 overflow-y-auto">
+        <!-- 聊天列表 -->
+        <div v-if="activeTab === 'messages'" class="message-list p-2 space-y-1">
+          <div 
+            v-for="chat in filteredChats" 
+            :key="chat.id"
+            class="flex items-center py-3 px-3 rounded-lg hover:bg-gray-800 cursor-pointer transition-colors"
+            :class="{ 'special-care': chat.id === selectedChatId }"
+            @click="selectChat(chat.id)"
+          >
+            <div class="relative">
+              <img 
+                :src="chat.avatar" 
+                :alt="chat.name" 
+                class="w-12 h-12 rounded-full"
+              >
+              <span 
+                v-if="chat.isOnline" 
+                class="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-white rounded-full"
+              ></span>
+            </div>
+            <div class="ml-3 flex-1">
+              <div class="flex justify-between">
+                <h3 class="font-medium text-white">{{ chat.name }}</h3>
+                <span class="text-xs text-gray-400">{{ chat.lastMessageTime }}</span>
+              </div>
+              <div class="flex items-center">
+                <p class="text-xs text-gray-400 truncate mr-2">{{ chat.lastMessage }}</p>
+                <span 
+                  v-if="chat.unreadCount > 0" 
+                  class="w-2 h-2 rounded-full bg-purple-500"
+                ></span>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <!-- 活动通知列表 -->
+        <div v-else class="notification-list p-2 space-y-1">
+          <div 
+            v-for="notification in filteredNotifications" 
+            :key="notification.id"
+            class="flex items-start py-3 px-3 rounded-lg hover:bg-gray-800 cursor-pointer transition-colors"
+            :class="{ 'bg-gray-800/50': !notification.read }"
+            @click="markAsRead(notification.id)"
+          >
+            <div class="relative">
+              <img 
+                :src="notification.user.avatar" 
+                :alt="notification.user.name" 
+                class="w-10 h-10 rounded-full"
+              >
+              <span v-if="!notification.read" class="absolute top-0 right-0 w-2 h-2 bg-purple-500 rounded-full"></span>
+            </div>
+            <div class="ml-3 flex-1">
+              <p class="text-sm text-white">
+                <span class="font-medium">{{ notification.user.name }}</span>
+                {{ notification.action }}
+              </p>
+              <span class="text-xs text-gray-400 block mt-1">{{ notification.time }}</span>
+=======
       <div class="message-list p-2 space-y-1">
         <div 
           v-for="chat in filteredChats" 
@@ -44,6 +139,7 @@
                 v-if="chat.unreadCount > 0" 
                 class="w-2 h-2 rounded-full bg-purple-500"
               ></span>
+>>>>>>> 4298baf184477cd5bb16677130bd93ae66da9a2b
             </div>
           </div>
         </div>
@@ -172,7 +268,13 @@ import { ref, computed, onMounted } from 'vue'
 const searchQuery = ref('')
 const selectedChatId = ref(1)
 const newMessage = ref('')
+<<<<<<< HEAD
+const activeTab = ref('messages') // 'messages' 或 'notifications'
 
+// 聊天数据
+=======
+
+>>>>>>> 4298baf184477cd5bb16677130bd93ae66da9a2b
 const chats = ref([
   {
     id: 1,
@@ -233,9 +335,50 @@ const chats = ref([
   }
 ])
 
+<<<<<<< HEAD
+// 通知数据 - 从HomePage.vue迁移过来
+const notifications = ref([
+  {
+    id: 1,
+    user: {
+      name: 'Frank',
+      avatar: 'https://modao.cc/ai/uploads/ai_pics/32/327754/aigp_1758963760.jpeg'
+    },
+    action: 'liked your post',
+    time: '2 minutes ago',
+    read: false
+  },
+  {
+    id: 2,
+    user: {
+      name: 'tu',
+      avatar: 'https://modao.cc/ai/uploads/ai_pics/32/327752/aigp_1758963757.jpeg'
+    },
+    action: 'started following you',
+    time: '1 hour ago',
+    read: false
+  },
+  {
+    id: 3,
+    user: {
+      name: 'ha',
+      avatar: 'https://modao.cc/ai/uploads/ai_pics/32/327753/aigp_1758963759.jpeg'
+    },
+    action: 'commented on your post',
+    time: '3 hours ago',
+    read: true
+  }
+])
+
 const aiTip = ref('张琳对艺术很感兴趣，这是你们的共同点。可以在见面时聊聊最近的艺术展览和个人收藏。')
 const aiSuggestion = ref('好主意！期待周六和你见面 ☺️')
 
+// 计算属性 - 过滤后的聊天列表
+=======
+const aiTip = ref('张琳对艺术很感兴趣，这是你们的共同点。可以在见面时聊聊最近的艺术展览和个人收藏。')
+const aiSuggestion = ref('好主意！期待周六和你见面 ☺️')
+
+>>>>>>> 4298baf184477cd5bb16677130bd93ae66da9a2b
 const filteredChats = computed(() => {
   if (!searchQuery.value) return chats.value
   return chats.value.filter(chat => 
@@ -243,14 +386,46 @@ const filteredChats = computed(() => {
   )
 })
 
+<<<<<<< HEAD
+// 计算属性 - 过滤后的通知列表
+const filteredNotifications = computed(() => {
+  if (!searchQuery.value) return notifications.value
+  return notifications.value.filter(notification => 
+    notification.user.name.toLowerCase().includes(searchQuery.value.toLowerCase()) ||
+    notification.action.toLowerCase().includes(searchQuery.value.toLowerCase())
+  )
+})
+
+// 计算属性 - 未读通知数量
+const unreadNotificationsCount = computed(() => {
+  return notifications.value.filter(notification => !notification.read).length
+})
+
+// 计算属性 - 当前选中的聊天
+=======
+>>>>>>> 4298baf184477cd5bb16677130bd93ae66da9a2b
 const selectedChat = computed(() => {
   return chats.value.find(chat => chat.id === selectedChatId.value)
 })
 
+<<<<<<< HEAD
+// 选择聊天
+const selectChat = (chatId) => {
+  selectedChatId.value = chatId
+  // 当切换到聊天标签时，标记该聊天为已读
+  const chat = chats.value.find(c => c.id === chatId)
+  if (chat) {
+    chat.unreadCount = 0
+  }
+}
+
+// 发送消息
+=======
 const selectChat = (chatId) => {
   selectedChatId.value = chatId
 }
 
+>>>>>>> 4298baf184477cd5bb16677130bd93ae66da9a2b
 const sendMessage = () => {
   if (!newMessage.value.trim()) return
   
@@ -268,11 +443,30 @@ const sendMessage = () => {
   }
 }
 
+<<<<<<< HEAD
+// 使用AI建议
+=======
+>>>>>>> 4298baf184477cd5bb16677130bd93ae66da9a2b
 const useAISuggestion = () => {
   newMessage.value = aiSuggestion.value
 }
 
+<<<<<<< HEAD
+// 标记通知为已读
+const markAsRead = (notificationId) => {
+  const notification = notifications.value.find(n => n.id === notificationId)
+  if (notification) {
+    notification.read = true
+  }
+}
+</script>
+
+<style scoped>
+/* 聊天界面样式保持不变 */
+</style>
+=======
 onMounted(() => {
   // 初始化聊天
 })
 </script>
+>>>>>>> 4298baf184477cd5bb16677130bd93ae66da9a2b
