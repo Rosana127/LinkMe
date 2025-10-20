@@ -4,11 +4,12 @@ import DiscoverPage from '../views/DiscoverPage.vue'
 import MatchPage from '../views/MatchPage.vue'
 import ChatPage from '../views/ChatPage.vue'
 import ProfilePage from '../views/ProfilePage.vue'
+import SettingsPage from '../views/SettingsPage.vue'
 
 const routes = [
   {
     path: '/',
-    redirect: '/home'
+    redirect: '/discover'
   },
   {
     path: '/home',
@@ -34,6 +35,11 @@ const routes = [
     path: '/profile',
     name: 'profile',
     component: ProfilePage
+  },
+  {
+    path: '/settings',
+    name: 'settings',
+    component: SettingsPage
   }
 ]
 

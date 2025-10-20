@@ -26,13 +26,6 @@
     <!-- 导航菜单 -->
     <div class="nav-menu">
       <button 
-        @click="navigateTo('home')" 
-        :class="['nav-link', { active: $route.name === 'home' }]"
-      >
-        <span class="iconify" data-icon="mdi:home-outline" data-inline="false"></span>
-        <span>Home</span>
-      </button>
-      <button 
         @click="navigateTo('discover')" 
         :class="['nav-link', { active: $route.name === 'discover' }]"
       >
@@ -60,17 +53,23 @@
         <span class="iconify" data-icon="mdi:bookmark-outline" data-inline="false"></span>
         <span>Saved</span>
       </button>
+      <button 
+        @click="navigateTo('home')" 
+        :class="['nav-link', { active: $route.name === 'home' }]"
+      >
+        <span class="iconify" data-icon="mdi:home-outline" data-inline="false"></span>
+        <span>Home</span>
+      </button>
       <button class="nav-link">
         <span class="iconify" data-icon="mdi:plus-circle-outline" data-inline="false"></span>
         <span>Create Post</span>
       </button>
-    </div>
-    
-    <!-- 底部退出按钮 -->
-    <div class="logout-section">
-      <button class="logout-btn">
-        <span class="iconify" data-icon="mdi:logout" data-inline="false"></span>
-        <span>Logout</span>
+      <button 
+        @click="navigateTo('settings')" 
+        :class="['nav-link', { active: $route.name === 'settings' }]"
+      >
+        <span class="iconify" data-icon="mdi:cog-outline" data-inline="false"></span>
+        <span>Settings</span>
       </button>
     </div>
   </aside>
