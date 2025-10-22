@@ -40,6 +40,7 @@
         <!-- 内容区域 - 根据标签页显示不同内容 -->
         <div class="flex-1 overflow-y-auto">
           <!-- 聊天列表 -->
+          <!-- 聊天列表部分的修改 -->
           <div v-if="activeTab === 'messages'" class="message-list p-2 space-y-1">
             <div 
               v-for="chat in filteredChats" 
@@ -48,7 +49,8 @@
               :class="{ 'special-care': chat.id === selectedChatId }"
               @click="selectChat(chat.id)"
             >
-              <div class="relative">
+              <!-- 头像部分添加固定宽度和z-index，确保不被消息挤占 -->
+              <div class="relative flex-shrink-0">
                 <img 
                   :src="chat.avatar" 
                   :alt="chat.name" 
@@ -56,19 +58,20 @@
                 >
                 <span 
                   v-if="chat.isOnline" 
-                  class="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-white rounded-full"
+                  class="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-gray-900 rounded-full"
                 ></span>
               </div>
-              <div class="ml-3 flex-1">
-                <div class="flex justify-between">
-                  <h3 class="font-medium text-white">{{ chat.name }}</h3>
-                  <span class="text-xs text-gray-400">{{ chat.lastMessageTime }}</span>
+              <!-- 消息内容区域添加flex布局，确保文本正确截断 -->
+              <div class="ml-3 flex-1 min-w-0">
+                <div class="flex justify-between items-start">
+                  <h3 class="font-medium text-white truncate">{{ chat.name }}</h3>
+                  <span class="text-xs text-gray-400 whitespace-nowrap">{{ chat.lastMessageTime }}</span>
                 </div>
                 <div class="flex items-center">
-                  <p class="text-xs text-gray-400 truncate mr-2">{{ chat.lastMessage }}</p>
+                  <p class="text-xs text-gray-400 truncate flex-1 mr-2">{{ chat.lastMessage }}</p>
                   <span 
                     v-if="chat.unreadCount > 0" 
-                    class="w-2 h-2 rounded-full bg-purple-500"
+                    class="w-2 h-2 rounded-full bg-purple-500 flex-shrink-0"
                   ></span>
                 </div>
               </div>
@@ -138,8 +141,8 @@
           </div>
         </div>
         
-        <!-- 消息区域 -->
-        <div class="flex-1 p-6 space-y-6 overflow-y-auto bg-gray-800">
+        <!-- 消息区域 - 添加ref属性 -->
+        <div class="flex-1 p-6 space-y-6 overflow-y-auto bg-gray-800" ref="messagesContainer">
           <div 
             v-for="message in selectedChat?.messages" 
             :key="message.id"
@@ -222,12 +225,14 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, nextTick, watch } from 'vue'
 
 const searchQuery = ref('')
 const selectedChatId = ref(1)
 const newMessage = ref('')
 const activeTab = ref('messages') // 'messages' 或 'notifications'
+// 为消息容器添加引用
+const messagesContainer = ref(null)
 
 // 聊天数据
 const chats = ref([
@@ -258,133 +263,213 @@ const chats = ref([
         time: '11:31',
         isFromUser: false,
         isAI: true,
-        aiSuggestion: '试试这样回复："好啊！我周六下午有空，要不要在附近的咖啡店先见面?"'
+        aiSuggestion: '太好了！我周六下午有空，我们可以先在附近的咖啡馆见面'
       },
       {
         id: 4,
-        content: '这个主意很棒！就约在那家新开的"云端咖啡"怎么样？周六下午1点？',
+        content: '太好了！我周六下午有空，我们可以先在附近的咖啡馆见面',
         time: '已读 11:32',
         isFromUser: true
+      },
+      {
+        id: 5,
+        content: '完美！那我们周六下午1:30在市中心的"星辰咖啡"见面，然后一起去展览馆？',
+        time: '11:33',
+        isFromUser: false
+      },
+      {
+        id: 6,
+        content: '没问题，我会准时到达！你需要我带什么吗？',
+        time: '已读 11:34',
+        isFromUser: true
+      },
+      {
+        id: 7,
+        content: '不用带什么，我们就是去看看展览，聊聊天。期待见到你！😊',
+        time: '11:35',
+        isFromUser: false
+      },
+      {
+        id: 8,
+        content: '我也很期待！周六见！',
+        time: '已读 11:36',
+        isFromUser: true
+      },
+      {
+        id: 9,
+        content: '对了，周末有空一起去喝咖啡吗？',
+        time: '刚刚',
+        isFromUser: false
       }
     ]
   },
   {
     id: 2,
-    name: '王浩然',
-    avatar: 'https://modao.cc/ai/uploads/ai_pics/32/327753/aigp_1758963759.jpeg',
-    isOnline: false,
-    lastMessage: '我找到了你说过的那家甜品店！',
-    lastMessageTime: '10:30',
+    name: '王伟',
+    avatar: 'https://modao.cc/ai/uploads/ai_pics/32/327749/aigp_1758963751.jpeg',
+    isOnline: true,
+    lastMessage: '下周一的会议准备好了吗？',
+    lastMessageTime: '10分钟前',
     unreadCount: 0,
-    messages: []
+    messages: [
+      {
+        id: 1,
+        content: '嘿，王伟，下周一的会议准备好了吗？',
+        time: '10:30',
+        isFromUser: true
+      },
+      {
+        id: 2,
+        content: '是的，我已经准备好了PPT和会议材料',
+        time: '10:32',
+        isFromUser: false
+      },
+      {
+        id: 3,
+        content: '太好了！那我们明天再确认一下细节吧',
+        time: '10:33',
+        isFromUser: true
+      },
+      {
+        id: 4,
+        content: '好的，没问题',
+        time: '10:34',
+        isFromUser: false
+      },
+      {
+        id: 5,
+        content: '下周一的会议准备好了吗？',
+        time: '10分钟前',
+        isFromUser: false
+      }
+    ]
   },
   {
     id: 3,
-    name: '张琳',
+    name: '赵雪',
     avatar: 'https://modao.cc/ai/uploads/ai_pics/32/327754/aigp_1758963760.jpeg',
-    isOnline: true,
-    lastMessage: '展览的事情定下来了吗？',
+    isOnline: false,
+    lastMessage: '谢谢你的帮忙！',
     lastMessageTime: '昨天',
     unreadCount: 0,
-    messages: []
+    messages: [
+      {
+        id: 1,
+        content: '嗨，赵雪，你上次提到的那本书叫什么名字？',
+        time: '昨天 15:20',
+        isFromUser: true
+      },
+      {
+        id: 2,
+        content: '哦，那本书叫《设计心理学》，非常推荐你看看！',
+        time: '昨天 15:25',
+        isFromUser: false
+      },
+      {
+        id: 3,
+        content: '好的，我会去看看的。谢谢你的推荐！',
+        time: '昨天 15:30',
+        isFromUser: true
+      },
+      {
+        id: 4,
+        content: '不客气，希望你会喜欢！',
+        time: '昨天 15:32',
+        isFromUser: false
+      },
+      {
+        id: 5,
+        content: '谢谢你的帮忙！',
+        time: '昨天 15:35',
+        isFromUser: true
+      }
+    ]
   }
 ])
 
-// 通知数据 - 从HomePage.vue迁移过来
+// 通知数据
 const notifications = ref([
   {
     id: 1,
     user: {
-      name: 'Frank',
-      avatar: 'https://modao.cc/ai/uploads/ai_pics/32/327754/aigp_1758963760.jpeg'
+      name: '李思雨',
+      avatar: 'https://modao.cc/ai/uploads/ai_pics/32/327752/aigp_1758963757.jpeg'
     },
-    action: 'liked your post',
-    time: '2 minutes ago',
+    action: '评论了你的动态',
+    time: '1小时前',
     read: false
   },
   {
     id: 2,
     user: {
-      name: 'tu',
-      avatar: 'https://modao.cc/ai/uploads/ai_pics/32/327752/aigp_1758963757.jpeg'
+      name: '王伟',
+      avatar: 'https://modao.cc/ai/uploads/ai_pics/32/327749/aigp_1758963751.jpeg'
     },
-    action: 'started following you',
-    time: '1 hour ago',
+    action: '点赞了你的照片',
+    time: '2小时前',
     read: false
   },
   {
     id: 3,
     user: {
-      name: 'ha',
-      avatar: 'https://modao.cc/ai/uploads/ai_pics/32/327753/aigp_1758963759.jpeg'
+      name: '赵雪',
+      avatar: 'https://modao.cc/ai/uploads/ai_pics/32/327754/aigp_1758963760.jpeg'
     },
-    action: 'commented on your post',
-    time: '3 hours ago',
+    action: '关注了你',
+    time: '昨天',
     read: true
   }
 ])
 
-const aiTip = ref('张琳对艺术很感兴趣，这是你们的共同点。可以在见面时聊聊最近的艺术展览和个人收藏。')
-const aiSuggestion = ref('好主意！期待周六和你见面 ☺️')
-
-// 计算属性 - 过滤后的聊天列表
-const filteredChats = computed(() => {
-  if (!searchQuery.value) return chats.value
-  return chats.value.filter(chat => 
-    chat.name.toLowerCase().includes(searchQuery.value.toLowerCase())
-  )
-})
-
-// 计算属性 - 过滤后的通知列表
-const filteredNotifications = computed(() => {
-  if (!searchQuery.value) return notifications.value
-  return notifications.value.filter(notification => 
-    notification.user.name.toLowerCase().includes(searchQuery.value.toLowerCase()) ||
-    notification.action.toLowerCase().includes(searchQuery.value.toLowerCase())
-  )
-})
-
-// 计算属性 - 未读通知数量
+// 未读通知数量
 const unreadNotificationsCount = computed(() => {
   return notifications.value.filter(notification => !notification.read).length
 })
 
-// 计算属性 - 当前选中的聊天
+// 过滤聊天列表
+const filteredChats = computed(() => {
+  if (!searchQuery.value) return chats.value
+  const query = searchQuery.value.toLowerCase()
+  return chats.value.filter(chat => 
+    chat.name.toLowerCase().includes(query) || 
+    chat.lastMessage.toLowerCase().includes(query)
+  )
+})
+
+// 过滤通知列表
+const filteredNotifications = computed(() => {
+  if (!searchQuery.value) return notifications.value
+  const query = searchQuery.value.toLowerCase()
+  return notifications.value.filter(notification => 
+    notification.user.name.toLowerCase().includes(query) || 
+    notification.action.toLowerCase().includes(query)
+  )
+})
+
+// 当前选中的聊天
 const selectedChat = computed(() => {
   return chats.value.find(chat => chat.id === selectedChatId.value)
+})
+
+// AI 建议
+const aiSuggestion = computed(() => {
+  // 这里可以根据上下文生成AI建议
+  return '我很乐意！周六见。'
+})
+
+// AI 提示
+const aiTip = computed(() => {
+  // 这里可以根据聊天上下文生成AI提示
+  return '你们的对话进展很顺利！注意保持自然的交流节奏。'
 })
 
 // 选择聊天
 const selectChat = (chatId) => {
   selectedChatId.value = chatId
-  // 当切换到聊天标签时，标记该聊天为已读
-  const chat = chats.value.find(c => c.id === chatId)
-  if (chat) {
-    chat.unreadCount = 0
-  }
-}
-
-// 发送消息
-const sendMessage = () => {
-  if (!newMessage.value.trim()) return
-  
-  const chat = chats.value.find(c => c.id === selectedChatId.value)
-  if (chat) {
-    chat.messages.push({
-      id: Date.now(),
-      content: newMessage.value,
-      time: '刚刚',
-      isFromUser: true
-    })
-    chat.lastMessage = newMessage.value
-    chat.lastMessageTime = '刚刚'
-    newMessage.value = ''
-  }
-}
-
-// 使用AI建议
-const useAISuggestion = () => {
-  newMessage.value = aiSuggestion.value
+  // 选择聊天后滚动到底部
+  nextTick(() => {
+    scrollToBottom()
+  })
 }
 
 // 标记通知为已读
@@ -394,6 +479,59 @@ const markAsRead = (notificationId) => {
     notification.read = true
   }
 }
+
+// 发送消息
+const sendMessage = () => {
+  if (!newMessage.value.trim() || !selectedChat.value) return
+  
+  const newMsg = {
+    id: Date.now(),
+    content: newMessage.value.trim(),
+    time: '已读 ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+    isFromUser: true
+  }
+  
+  // 添加新消息到当前聊天
+  const chatIndex = chats.value.findIndex(c => c.id === selectedChatId.value)
+  chats.value[chatIndex].messages.push(newMsg)
+  chats.value[chatIndex].lastMessage = newMessage.value
+  chats.value[chatIndex].lastMessageTime = '刚刚'
+  
+  // 清空输入框
+  newMessage.value = ''
+  
+  // 滚动到底部
+  nextTick(() => {
+    scrollToBottom()
+  })
+}
+
+// 使用AI建议
+const useAISuggestion = () => {
+  newMessage.value = aiSuggestion.value
+}
+
+// 滚动到底部函数
+const scrollToBottom = () => {
+  // 确保消息容器已渲染
+  if (messagesContainer.value) {
+    messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight
+  }
+}
+
+// 监听selectedChatId变化，切换聊天时滚动到底部
+watch(selectedChatId, () => {
+  nextTick(() => {
+    scrollToBottom()
+  })
+})
+
+// 组件挂载后滚动到底部
+onMounted(() => {
+  nextTick(() => {
+    scrollToBottom()
+  })
+})
 </script>
 
 <style scoped>
