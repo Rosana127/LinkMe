@@ -5,6 +5,7 @@ import MatchPage from '../views/MatchPage.vue'
 import ChatPage from '../views/ChatPage.vue'
 import ProfilePage from '../views/ProfilePage.vue'
 import SettingsPage from '../views/SettingsPage.vue'
+import CreatePost from '../views/CreatePost.vue'
 
 const routes = [
   {
@@ -40,6 +41,11 @@ const routes = [
     path: '/settings',
     name: 'settings',
     component: SettingsPage
+  }
+  ,{
+    path: '/create',
+    name: 'create',
+    component: CreatePost
   }
 ]
 

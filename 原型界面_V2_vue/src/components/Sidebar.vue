@@ -60,7 +60,10 @@
         <span class="iconify" data-icon="mdi:home-outline" data-inline="false"></span>
         <span>Home</span>
       </button>
-      <button class="nav-link">
+      <button 
+        @click="navigateTo('create')" 
+        :class="['nav-link', { active: $route.name === 'create' }]"
+      >
         <span class="iconify" data-icon="mdi:plus-circle-outline" data-inline="false"></span>
         <span>Create Post</span>
       </button>
