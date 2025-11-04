@@ -106,8 +106,8 @@ const handleLogout = () => {
 <style scoped>
 .settings-page {
   min-height: 100vh;
-  background-color: #0a0a0a;
-  color: #ffffff;
+  background-color: #ffffff;
+  color: #333333;
   padding: 20px;
 }
 

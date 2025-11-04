@@ -7,19 +7,26 @@
           <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
         </svg>
       </div>
-      <h1 class="logo-text">Snapgram</h1>
+      <h1 class="logo-text">LinkMe</h1>
     </div>
     
     <!-- 用户信息区域 -->
-    <div class="user-section">
+    <div class="user-section" v-if="isAuthenticated">
       <img 
-        src="https://modao.cc/ai/uploads/ai_pics/32/327755/aigp_1758963762.jpeg" 
+        :src="userAvatar" 
         alt="User avatar" 
         class="user-avatar"
       >
       <div class="user-info">
-        <div class="user-name">babycat</div>
-        <div class="user-handle">@babycat</div>
+        <div class="user-name">{{ userNickname }}</div>
+        <div class="user-handle">@{{ userUsername }}</div>
+      </div>
+    </div>
+    <!-- 未登录时显示登录提示 -->
+    <div class="user-section" v-else>
+      <div class="user-info" style="flex: 1; text-align: center;">
+        <div class="user-name" style="margin-bottom: 8px;">欢迎使用 LinkMe</div>
+        <router-link to="/login" class="login-link-btn">登录/注册</router-link>
       </div>
     </div>
     
@@ -75,16 +82,43 @@
         <span>Settings</span>
       </button>
     </div>
+    
+    <!-- 登出按钮 -->
+    <div class="logout-section" v-if="isAuthenticated">
+      <button @click="handleLogout" class="logout-btn">
+        <span class="iconify" data-icon="mdi:logout" data-inline="false"></span>
+        <span>Logout</span>
+      </button>
+    </div>
   </aside>
 </template>
 
 <script setup>
+import { computed } from 'vue'
 import { useRouter } from 'vue-router'
+import { useAuthStore } from '@/stores/auth'
 
 const router = useRouter()
+const authStore = useAuthStore()
+
+const isAuthenticated = computed(() => authStore.isAuthenticated)
+const userNickname = computed(() => authStore.user?.nickname || 'User')
+const userUsername = computed(() => authStore.user?.username || 'username')
+const userAvatar = computed(() => authStore.user?.avatarUrl || 'https://modao.cc/ai/uploads/ai_pics/32/327755/aigp_1758963762.jpeg')
 
 const navigateTo = (routeName) => {
-  router.push({ name: routeName })
+  // 如果需要登录的路由，检查登录状态
+  const requiresAuthRoutes = ['home', 'match', 'chat', 'profile', 'settings', 'create']
+  if (requiresAuthRoutes.includes(routeName) && !authStore.isAuthenticated) {
+    router.push({ name: 'login', query: { redirect: `/${routeName}` } })
+  } else {
+    router.push({ name: routeName })
+  }
+}
+
+const handleLogout = () => {
+  authStore.logout()
+  router.push({ name: 'login' })
 }
 </script>
 
@@ -92,15 +126,17 @@ const navigateTo = (routeName) => {
 .sidebar {
   width: 280px;
   height: 100vh;
-  background-color: #000000;
-  color: #ffffff;
+  background: #ffffff !important;
+  background-color: #ffffff !important;
+  color: #666666 !important;
   display: flex;
   flex-direction: column;
   padding: 20px;
   position: fixed;
   left: 0;
   top: 0;
-  border-right: 1px solid #333333;
+  border-right: 1px solid #e0e0e0;
+  z-index: 1000;
 }
 
 .logo-section {
@@ -124,7 +160,7 @@ const navigateTo = (routeName) => {
 .logo-text {
   font-size: 24px;
   font-weight: bold;
-  color: #ffffff;
+  color: #333333;
   margin: 0;
 }
 
@@ -135,7 +171,7 @@ const navigateTo = (routeName) => {
   margin-bottom: 40px;
   padding: 12px;
   border-radius: 12px;
-  background-color: #1a1a1a;
+  background-color: #f5f5f5;
 }
 
 .user-avatar {
@@ -151,12 +187,12 @@ const navigateTo = (routeName) => {
 
 .user-name {
   font-weight: 600;
-  color: #ffffff;
+  color: #333333;
   font-size: 16px;
 }
 
 .user-handle {
-  color: #888888;
+  color: #666666;
   font-size: 14px;
 }
 
@@ -175,7 +211,7 @@ const navigateTo = (routeName) => {
   border-radius: 12px;
   background: none;
   border: none;
-  color: #ffffff;
+  color: #666666;
   font-size: 16px;
   font-weight: 500;
   cursor: pointer;
@@ -185,18 +221,36 @@ const navigateTo = (routeName) => {
 }
 
 .nav-link:hover {
-  background-color: #1a1a1a;
+  background-color: #8b5cf6;
+  color: #ffffff;
 }
 
 .nav-link.active {
-  background-color: #8b5cf6;
-  color: #ffffff;
+  background-color: #f0f0f0;
+  color: #333333;
+  font-weight: 600;
 }
 
 .nav-link .iconify {
   font-size: 20px;
   width: 20px;
   height: 20px;
+}
+
+.login-link-btn {
+  display: inline-block;
+  padding: 8px 16px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border-radius: 8px;
+  text-decoration: none;
+  font-size: 14px;
+  font-weight: 500;
+  transition: opacity 0.2s;
+}
+
+.login-link-btn:hover {
+  opacity: 0.9;
 }
 
 .logout-section {
@@ -212,7 +266,7 @@ const navigateTo = (routeName) => {
   border-radius: 12px;
   background: none;
   border: none;
-  color: #888888;
+  color: #666666;
   font-size: 16px;
   font-weight: 500;
   cursor: pointer;
@@ -222,8 +276,8 @@ const navigateTo = (routeName) => {
 }
 
 .logout-btn:hover {
-  background-color: #1a1a1a;
-  color: #ffffff;
+  background-color: #f5f5f5;
+  color: #333333;
 }
 
 .logout-btn .iconify {

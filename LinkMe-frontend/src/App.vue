@@ -1,218 +1,84 @@
 <template>
   <div class="app-container">
-    <!-- 侧边栏 -->
-    <Sidebar />
+    <!-- 登录和注册页面 - 不显示推荐内容 -->
+    <template v-if="isAuthPage">
+      <router-view />
+    </template>
     
-    <!-- 主内容区域 -->
-    <main class="main-content">
-      <div class="content-wrapper">
-        <!-- 左侧主内容区 -->
-        <div class="main-feed">
-          <router-view />
-        </div>
-        
-        <!-- 右侧栏 - 根据页面显示不同内容 -->
-        <div class="right-sidebar" v-if="showRightSidebar">
-          <!-- Explore页面 - Top Creators 和原Home页面内容 -->
-          <div v-if="route.name === 'discover'" class="recommendation-section">
-            <h3 class="section-title">Top Creators</h3>
-            <div class="creators-grid">
-              <div 
-                v-for="creator in topCreators" 
-                :key="creator.id"
-                class="creator-card"
-              >
-                <div class="creator-avatar">
-                  <img 
-                    :src="creator.avatar" 
-                    :alt="creator.name"
-                    class="w-12 h-12 rounded-full object-cover"
-                  >
+    <!-- 其他页面显示完整布局 -->
+    <template v-else>
+      <!-- 侧边栏 -->
+      <Sidebar />
+      
+      <!-- 主内容区域 -->
+      <main class="main-content">
+        <div class="content-wrapper">
+          <!-- 左侧主内容区 -->
+          <div class="main-feed">
+            <router-view />
+          </div>
+          
+          <!-- 右侧栏 - 根据页面显示不同内容 -->
+          <div class="right-sidebar" v-if="showRightSidebar">
+            <!-- Saved页面 - 收藏统计 -->
+            <div class="recommendation-section">
+              <h3 class="section-title">Saved Stats</h3>
+              <div class="stats-grid">
+                <div class="stat-card">
+                  <div class="stat-number">24</div>
+                  <div class="stat-label">Total Saved</div>
                 </div>
-                <div class="creator-info">
-                  <div class="creator-name">{{ creator.name }}</div>
-                  <div class="creator-handle">@{{ creator.handle }}</div>
-                </div>
-                <button class="follow-btn">Follow</button>
-              </div>
-            </div>
-            
-            <!-- 原Home页面内容 -->
-            <div class="mt-6 pt-6 border-t border-gray-200">
-              <h3 class="section-title">Suggested for you</h3>
-              <div class="creators-grid">
-                <div 
-                  v-for="user in suggestedUsers" 
-                  :key="user.id"
-                  class="creator-card"
-                >
-                  <div class="creator-avatar">
-                    <img 
-                      :src="user.avatar" 
-                      :alt="user.name"
-                      class="w-12 h-12 rounded-full object-cover"
-                    >
-                  </div>
-                  <div class="creator-info">
-                    <div class="creator-name">{{ user.name }}</div>
-                    <div class="creator-handle">@{{ user.handle }}</div>
-                  </div>
-                  <button class="follow-btn">Follow</button>
+                <div class="stat-card">
+                  <div class="stat-number">8</div>
+                  <div class="stat-label">This Week</div>
                 </div>
               </div>
               
-              <div class="activity-summary">
-                <h4 class="summary-title">Recent Activity</h4>
-                <div class="activity-item" v-for="activity in recentActivity" :key="activity.id">
-                  <div class="activity-text">{{ activity.text }}</div>
-                  <div class="activity-time">{{ activity.time }}</div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- Saved页面 - 收藏统计 -->
-          <div v-else-if="route.name === 'profile'" class="recommendation-section">
-            <h3 class="section-title">Saved Stats</h3>
-            <div class="stats-grid">
-              <div class="stat-card">
-                <div class="stat-number">24</div>
-                <div class="stat-label">Total Saved</div>
-              </div>
-              <div class="stat-card">
-                <div class="stat-number">8</div>
-                <div class="stat-label">This Week</div>
-              </div>
-            </div>
-            
-            <div class="top-categories">
-              <h4 class="summary-title">Top Categories</h4>
-              <div class="category-list">
-                <div 
-                  v-for="category in topCategories" 
-                  :key="category.name"
-                  class="category-item"
-                >
-                  <span class="category-icon">
-                    <span class="iconify" :data-icon="category.icon" data-inline="false"></span>
-                  </span>
-                  <span class="category-name">{{ category.name }}</span>
-                  <span class="category-count">{{ category.count }}</span>
+              <div class="top-categories">
+                <h4 class="summary-title">Top Categories</h4>
+                <div class="category-list">
+                  <div 
+                    v-for="category in topCategories" 
+                    :key="category.name"
+                    class="category-item"
+                  >
+                    <span class="category-icon">
+                      <span class="iconify" :data-icon="category.icon" data-inline="false"></span>
+                    </span>
+                    <span class="category-name">{{ category.name }}</span>
+                    <span class="category-count">{{ category.count }}</span>
+                  </div>
                 </div>
               </div>
             </div>
           </div>
         </div>
-      </div>
-    </main>
+      </main>
+    </template>
   </div>
 </template>
 
 <script setup>
 import { computed, ref } from 'vue'
 import { useRoute } from 'vue-router'
+import { useAuthStore } from '@/stores/auth'
 import Sidebar from './components/Sidebar.vue'
 
 const route = useRoute()
+const authStore = useAuthStore()
 
-// 控制右侧栏显示，只在Saved页面显示（去掉了discover页面）
-const showRightSidebar = computed(() => {
-  // return ['discover', 'profile'].includes(route.name)
-  return ['profile'].includes(route.name)
+// 判断是否为登录/注册页面
+const isAuthPage = computed(() => {
+  return route.name === 'login' || route.name === 'register'
 })
 
-// Explore页面 - Top Creators
-const topCreators = ref([
-  {
-    id: 1,
-    name: 'babycat',
-    handle: 'babycat',
-    avatar: 'https://modao.cc/ai/uploads/ai_pics/32/327755/aigp_1758963762.jpeg'
-  },
-  {
-    id: 2,
-    name: 'tu',
-    handle: 'tu',
-    avatar: 'https://modao.cc/ai/uploads/ai_pics/32/327752/aigp_1758963757.jpeg'
-  },
-  {
-    id: 3,
-    name: 'ha',
-    handle: 'ha',
-    avatar: 'https://modao.cc/ai/uploads/ai_pics/32/327753/aigp_1758963759.jpeg'
-  },
-  {
-    id: 4,
-    name: 'Frank',
-    handle: 'nbfrank',
-    avatar: 'https://modao.cc/ai/uploads/ai_pics/32/327754/aigp_1758963760.jpeg'
-  },
-  {
-    id: 5,
-    name: '11',
-    handle: '11',
-    avatar: 'https://modao.cc/ai/uploads/ai_pics/32/327749/aigp_1758963751.jpeg'
-  },
-  {
-    id: 6,
-    name: 'Ck',
-    handle: 'ck',
-    avatar: 'https://modao.cc/ai/uploads/ai_pics/32/327748/aigp_1758963749.jpeg'
-  },
-  {
-    id: 7,
-    name: 'pony',
-    handle: 'pony',
-    avatar: 'https://modao.cc/ai/uploads/ai_pics/32/327747/aigp_1758963748.jpeg'
-  },
-  {
-    id: 8,
-    name: 'edwardxcj',
-    handle: 'edwardxcj',
-    avatar: 'https://modao.cc/ai/uploads/ai_pics/32/327755/aigp_1758963762.jpeg'
+// 控制右侧栏显示，只有profile页面显示，且需要登录
+const showRightSidebar = computed(() => {
+  if (!authStore.isAuthenticated) {
+    return false // 未登录时不显示右侧栏
   }
-])
-
-// 推荐用户 (现在显示在Explore页面)
-const suggestedUsers = ref([
-  {
-    id: 1,
-    name: 'Sarah',
-    handle: 'sarah_travel',
-    avatar: 'https://modao.cc/ai/uploads/ai_pics/32/327752/aigp_1758963757.jpeg'
-  },
-  {
-    id: 2,
-    name: 'Mike',
-    handle: 'mike_photo',
-    avatar: 'https://modao.cc/ai/uploads/ai_pics/32/327753/aigp_1758963759.jpeg'
-  },
-  {
-    id: 3,
-    name: 'Emma',
-    handle: 'emma_art',
-    avatar: 'https://modao.cc/ai/uploads/ai_pics/32/327754/aigp_1758963760.jpeg'
-  }
-])
-
-// 最近活动 (现在显示在Explore页面)
-const recentActivity = ref([
-  {
-    id: 1,
-    text: 'Frank liked your post',
-    time: '2 min ago'
-  },
-  {
-    id: 2,
-    text: 'New follower: Sarah',
-    time: '1 hour ago'
-  },
-  {
-    id: 3,
-    text: 'Your post got 15 likes',
-    time: '3 hours ago'
-  }
-])
+  return route.name === 'profile' // 只显示profile页面的右侧栏
+})
 
 
 // Saved页面 - 热门分类
@@ -247,10 +113,12 @@ const topCategories = ref([
   background-color: #ffffff; /* 修改背景色为白色 */
 }
 
+
 .main-content {
   flex: 1;
   padding: 20px;
   margin-left: 260px;
+  background-color: #ffffff;
 }
 
 .content-wrapper {
@@ -286,85 +154,11 @@ const topCategories = ref([
   margin-bottom: 20px;
 }
 
-.creators-grid {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  margin-bottom: 20px;
-}
-
-.creator-card {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.creator-avatar {
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  overflow: hidden;
-}
-
-.creator-avatar img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.creator-info {
-  flex: 1;
-}
-
-.creator-name {
-  font-weight: 600;
-  color: #ffffff;
-  font-size: 14px;
-}
-
-.creator-handle {
-  color: #888888;
-  font-size: 12px;
-}
-
-.follow-btn {
-  background-color: #8b5cf6;
-  color: #ffffff;
-  border: none;
-  border-radius: 6px;
-  padding: 4px 12px;
-  font-size: 12px;
-  font-weight: 500;
-}
-
-.follow-btn:hover {
-  background-color: #7c3aed;
-}
-
-.activity-summary {
-  margin-top: 20px;
-}
-
 .summary-title {
   font-size: 16px;
   font-weight: 600;
   color: #ffffff;
   margin-bottom: 12px;
-}
-
-.activity-item {
-  margin-bottom: 12px;
-}
-
-.activity-text {
-  color: #ffffff;
-  font-size: 14px;
-  margin-bottom: 4px;
-}
-
-.activity-time {
-  color: #888888;
-  font-size: 12px;
 }
 
 .stats-grid {
