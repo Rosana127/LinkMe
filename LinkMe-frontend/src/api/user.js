@@ -6,10 +6,38 @@ import request from './request'
  * @returns {Promise}
  */
 export function register(userData) {
+  // 将前端发送的password字段转换为后端期望的passwordHash字段
+  const requestData = { ...userData }
+  if (requestData.password) {
+    requestData.passwordHash = requestData.password
+    delete requestData.password
+  }
+  
+  // 将中文性别转换为英文（数据库ENUM只接受male, female, other）
+  if (requestData.gender) {
+    const genderMap = {
+      '男': 'male',
+      '女': 'female',
+      '其他': 'other'
+    }
+    requestData.gender = genderMap[requestData.gender] || requestData.gender
+  }
+  
+  // 调试日志：打印发送的数据
+  console.log('注册请求数据:', {
+    username: requestData.username,
+    nickname: requestData.nickname,
+    email: requestData.email,
+    phone: requestData.phone,
+    hasPassword: !!requestData.passwordHash,
+    gender: requestData.gender,
+    birthday: requestData.birthday
+  })
+  
   return request({
     url: '/user/register',
     method: 'post',
-    data: userData
+    data: requestData
   })
 }
 
