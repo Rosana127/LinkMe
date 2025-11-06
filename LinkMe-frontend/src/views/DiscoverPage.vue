@@ -1,6 +1,8 @@
 <template>
   <div class="explore-page">
     <h1 class="page-title">Explore</h1>
+    <!-- toast 提示 -->
+    <div v-if="showToast" class="toast">{{ toastText }}</div>
     
     <!-- 分类和搜索区域 - 修改为固定在顶部，背景为白色，不覆盖侧边栏 -->
     <div class="category-search-container fixed-header">
@@ -34,11 +36,7 @@
     
     <!-- 动态流 - 保持两列布局，确保有足够的顶部内边距避免被固定栏遮挡 -->
     <div class="posts-grid">
-      <div 
-        v-for="post in filteredPosts" 
-        :key="post.id"
-        class="post-card"
-      >
+      <router-link v-for="post in filteredPosts" :key="post.id" :to="{ name: 'post', params: { id: post.id } }" class="post-card post-link">
         <!-- 用户信息 -->
         <div class="post-header">
           <div class="user-info">
@@ -61,7 +59,14 @@
         <!-- 帖子内容 -->
         <div class="post-content">
           <p class="post-caption">{{ post.caption }}</p>
-          <div class="hashtags">{{ post.hashtags }}</div>
+              <div class="hashtags">
+                {{ post.hashtags }}
+                <!-- 在标签后显示收藏数（bookmark） -->
+                <span class="fav-inline" @click.stop="toggleFavorite(post)">
+                  <span class="iconify" data-icon="mdi:bookmark-outline" data-inline="false"></span>
+                  <span class="fav-count">{{ post.favorites || 0 }}</span>
+                </span>
+              </div>
         </div>
         
         <!-- 图片 -->
@@ -73,17 +78,18 @@
           >
         </div>
         
-        <!-- 互动按钮 -->
+        <!-- 互动按钮（阻止导航） -->
         <div class="post-actions">
-          <button class="action-btn">
-            <span class="iconify" data-icon="mdi:heart-outline" data-inline="false"></span>
+          <button :class="['action-btn', { liked: post.liked }]" @click.stop="toggleLike(post)">
+            <span class="iconify" :data-icon="post.liked ? 'mdi:heart' : 'mdi:heart-outline'" data-inline="false"></span>
             <span>{{ post.likes }}</span>
           </button>
-          <button class="action-btn">
-            <span class="iconify" data-icon="mdi:bookmark-outline" data-inline="false"></span>
+          <button :class="['action-btn', { favorited: post.favorited }]" @click.stop="toggleFavorite(post)">
+            <span class="iconify" :data-icon="post.favorited ? 'mdi:bookmark' : 'mdi:bookmark-outline'" data-inline="false"></span>
+            <span>{{ post.favorites || 0 }}</span>
           </button>
         </div>
-      </div>
+      </router-link>
     </div>
   </div>
 </template>
@@ -96,97 +102,13 @@ const activeCategory = ref('recommended')
 // 搜索查询
 const searchQuery = ref('')
 
-// 推荐的帖子数据
-const recommendedPosts = ref([
-  {
-    id: 1,
-    author: {
-      name: 'babycat',
-      handle: 'babycat',
-      avatar: 'https://modao.cc/ai/uploads/ai_pics/32/327755/aigp_1758963762.jpeg'
-    },
-    time: '15 minutes ago',
-    location: 'Australia',
-    caption: 'Beautiful cat in the world',
-    hashtags: '#Cat #Pet #Animal',
-    image: 'https://modao.cc/ai/uploads/ai_pics/32/327755/aigp_1758963762.jpeg',
-    likes: 1
-  },
-  {
-    id: 2,
-    author: {
-      name: 'Frank',
-      handle: 'nbfrank',
-      avatar: 'https://modao.cc/ai/uploads/ai_pics/32/327754/aigp_1758963760.jpeg'
-    },
-    time: '4 hours ago',
-    location: 'Stockholm',
-    caption: 'Stockholm, Sweden',
-    hashtags: '#Travel #Sweden #Stockholm',
-    image: 'https://modao.cc/ai/uploads/ai_pics/32/327754/aigp_1758963760.jpeg',
-    likes: 24
-  },
-  {
-    id: 3,
-    author: {
-      name: 'tu',
-      handle: 'tu',
-      avatar: 'https://modao.cc/ai/uploads/ai_pics/32/327752/aigp_1758963757.jpeg'
-    },
-    time: '2 hours ago',
-    location: 'Tokyo',
-    caption: 'Amazing sunset in Tokyo',
-    hashtags: '#Sunset #Tokyo #Japan',
-    image: 'https://modao.cc/ai/uploads/ai_pics/32/327752/aigp_1758963757.jpeg',
-    likes: 156
-  }
-])
+import { recommendedPosts as recommendedData, followingPosts as followingData } from '@/data/posts'
 
-// 关注的帖子数据
-const followingPosts = ref([
-  {
-    id: 4,
-    author: {
-      name: 'ha',
-      handle: 'ha',
-      avatar: 'https://modao.cc/ai/uploads/ai_pics/32/327753/aigp_1758963759.jpeg'
-    },
-    time: '1 hour ago',
-    location: 'Paris',
-    caption: 'Morning coffee in Paris',
-    hashtags: '#Coffee #Paris #Morning',
-    image: 'https://modao.cc/ai/uploads/ai_pics/32/327749/aigp_1758963751.jpeg',
-    likes: 89
-  },
-  {
-    id: 5,
-    author: {
-      name: 'Ck',
-      handle: 'ck',
-      avatar: 'https://modao.cc/ai/uploads/ai_pics/32/327748/aigp_1758963749.jpeg'
-    },
-    time: '30 minutes ago',
-    location: 'New York',
-    caption: 'Weekend vibes in the city',
-    hashtags: '#Weekend #NYC #City',
-    image: 'https://modao.cc/ai/uploads/ai_pics/32/327748/aigp_1758963749.jpeg',
-    likes: 123
-  },
-  {
-    id: 6,
-    author: {
-      name: 'pony',
-      handle: 'pony',
-      avatar: 'https://modao.cc/ai/uploads/ai_pics/32/327747/aigp_1758963748.jpeg'
-    },
-    time: '5 hours ago',
-    location: 'London',
-    caption: 'Nature walk in the park',
-    hashtags: '#Nature #Walk #London',
-    image: 'https://modao.cc/ai/uploads/ai_pics/32/327747/aigp_1758963748.jpeg',
-    likes: 78
-  }
-])
+// 推荐的帖子数据（从共享模块读取）
+const recommendedPosts = ref(recommendedData)
+
+// 关注的帖子数据（从共享模块读取）
+const followingPosts = ref(followingData)
 
 // 根据当前分类和搜索词过滤帖子
 const filteredPosts = computed(() => {
@@ -203,6 +125,43 @@ const filteredPosts = computed(() => {
   
   return posts
 })
+
+// toast for 收藏成功
+const showToast = ref(false)
+const toastText = ref('')
+function toggleFavorite(post) {
+  // ensure fields exist
+  if (post.favorites === undefined) post.favorites = 0
+  if (post.favorited === undefined) post.favorited = false
+
+  if (post.favorited) {
+    // 取消收藏
+    post.favorites = Math.max(0, post.favorites - 1)
+    post.favorited = false
+    toastText.value = '已取消收藏'
+  } else {
+    // 收藏
+    post.favorites = (post.favorites || 0) + 1
+    post.favorited = true
+    toastText.value = '收藏成功'
+  }
+
+  showToast.value = true
+  setTimeout(() => { showToast.value = false }, 1200)
+}
+
+function toggleLike(post) {
+  if (post.likes === undefined) post.likes = 0
+  if (post.liked === undefined) post.liked = false
+
+  if (post.liked) {
+    post.likes = Math.max(0, post.likes - 1)
+    post.liked = false
+  } else {
+    post.likes = post.likes + 1
+    post.liked = true
+  }
+}
 </script>
 
 <style scoped>
@@ -406,4 +365,14 @@ const filteredPosts = computed(() => {
 .action-btn .iconify {
   font-size: 18px;
 }
+
+.fav-inline { display:inline-flex; align-items:center; gap:6px; margin-left:10px; color:#6b7280; cursor:pointer }
+.fav-inline .fav-count { font-size:13px; color:#374151; margin-left:4px }
+
+.toast { position: fixed; top: 90px; right: 40px; background: rgba(17,24,39,0.95); color: #fff; padding: 10px 14px; border-radius: 8px; box-shadow: 0 6px 18px rgba(15,23,42,0.25); z-index: 200 }
+
+/* active states */
+.action-btn.liked { color: #ef4444 } /* 红心 */
+.action-btn.favorited { color: #10b981 } /* 绿色收藏 */
+.post-actions .iconify { transition: color 0.15s }
 </style>

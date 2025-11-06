@@ -9,6 +9,7 @@ import SettingsPage from '../views/SettingsPage.vue'
 import CreatePost from '../views/CreatePost.vue'
 import LoginPage from '../views/LoginPage.vue'
 import RegisterPage from '../views/RegisterPage.vue'
+import PostDetail from '../views/PostDetail.vue'
 
 const routes = [
   {
@@ -68,6 +69,14 @@ const routes = [
     name: 'create',
     component: CreatePost,
     meta: { requiresAuth: true }
+  }
+  ,
+  {
+    path: '/post/:id',
+    name: 'post',
+    component: PostDetail,
+    props: true,
+    meta: { requiresAuth: false }
   }
 ]
 
