@@ -25,15 +25,22 @@ request.interceptors.request.use(
 // 响应拦截器
 request.interceptors.response.use(
   (response) => {
-    // 后端返回的数据格式: { code, message, data }
+    // 兼容多种后端返回格式：
+    // 1) 统一格式 { code, message, data } -> 返回 data 当 code === 200
+    // 2) 传统 RESTful 返回直接的对象或数组 (可能伴随 HTTP 200/201) -> 直接返回 response.data
     const res = response.data
-    if (res.code === 200) {
-      return res.data
-    } else {
-      // 处理业务错误
+
+    // 如果后端使用统一 code 结构
+    if (res && typeof res === 'object' && Object.prototype.hasOwnProperty.call(res, 'code')) {
+      if (res.code === 200) {
+        return res.data
+      }
       const message = res.message || '请求失败'
       return Promise.reject(new Error(message))
     }
+
+    // 否则当作标准 RESTful 响应直接返回（允许 200/201 等）
+    return res
   },
   (error) => {
     // 处理HTTP错误

@@ -84,7 +84,7 @@
         <div class="manage-grid">
           <div v-for="post in filteredPosts" :key="post.id" class="post-card">
             <div class="card-image">
-              <img :src="post.images && post.images.length ? post.images[0].data || post.images[0].url : 'https://via.placeholder.com/400x240?text=No+Image'" alt="post" />
+              <img :src="coverFor(post)" alt="post" />
             </div>
             <div class="card-body">
               <div class="card-title">{{ post.title }}</div>
@@ -106,8 +106,10 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
+import { useAuthStore } from '@/stores/auth'
+import { createPost, getUserPosts, deletePost } from '@/api/posts'
 
 const router = useRouter()
 
@@ -124,12 +126,80 @@ const visibility = ref('public')
 const message = ref('')
 const fileInput = ref(null)
 
-// simple in-memory posts list for management demo
-const posts = ref([
-  { id: 1, title: '猫咪的早晨', content: 'Lovely cat', tags: ['Photography'], images: [], status: 'published' },
-  { id: 2, title: '旅行笔记', content: 'Wanderlust', tags: ['Travel'], images: [], status: 'review' },
-  { id: 3, title: '美食分享', content: 'Delicious', tags: ['Food'], images: [], status: 'rejected' }
-])
+// posts list (load from backend on mount). fallback to localStorage if backend unreachable
+const posts = ref([])
+
+const LOCAL_POSTS_KEY = (userId) => `posts_user_${userId}`
+
+function normalizeStatus(raw) {
+  // common possibilities: status (string), state, reviewStatus, auditStatus, numeric codes
+  if (!raw && raw !== 0) return 'review'
+  // if already a string like 'published','draft','review','rejected'
+  if (typeof raw === 'string') return raw
+  // boolean flags
+  if (raw === true) return 'published'
+  if (raw === false) return 'review'
+  // numeric codes -> guess mapping
+  // 0: draft, 1: review, 2: published, 3: rejected
+  if (typeof raw === 'number') {
+    switch (raw) {
+      case 0: return 'draft'
+      case 1: return 'review'
+      case 2: return 'published'
+      case 3: return 'rejected'
+      default: return 'review'
+    }
+  }
+  return 'review'
+}
+
+function normalizePost(p) {
+  const post = { ...p }
+  // normalize id
+  post.id = p.id ?? p._id ?? p.postId ?? null
+  // normalize title/content/tags
+  post.title = p.title ?? p.subject ?? p.heading ?? ''
+  post.content = p.content ?? p.body ?? p.text ?? ''
+  post.tags = p.tags ?? p.tagNames ?? []
+  // normalize images: backend may return array of strings (urls) or objects
+  if (Array.isArray(p.images)) {
+    post.images = p.images.map(img => {
+      if (!img) return null
+      if (typeof img === 'string') return ({ url: img })
+      if (img.url) return ({ url: img.url })
+      if (img.path) return ({ url: img.path })
+      return img
+    }).filter(Boolean)
+  } else {
+    post.images = []
+  }
+  // normalize status from several possible fields
+  post.status = normalizeStatus(p.status ?? p.state ?? p.reviewStatus ?? p.auditStatus ?? (p.published ? 2 : undefined) ?? (p.isDraft ? 0 : undefined))
+  return post
+}
+
+async function loadPosts() {
+  const authStore = useAuthStore()
+  const userId = authStore.userId
+  if (!userId) {
+    // no logged-in user: try localStorage generic key or keep empty
+    const raw = localStorage.getItem('posts_guest')
+    posts.value = raw ? JSON.parse(raw) : []
+    return
+  }
+
+  try {
+    const list = await getUserPosts(userId)
+    const arr = Array.isArray(list) ? list : (list?.data && Array.isArray(list.data) ? list.data : [])
+    posts.value = arr.map(normalizePost)
+    // cache to localStorage
+    localStorage.setItem(LOCAL_POSTS_KEY(userId), JSON.stringify(posts.value))
+  } catch (err) {
+    // backend failed: try local cache
+    const raw = localStorage.getItem(LOCAL_POSTS_KEY(userId))
+    posts.value = raw ? JSON.parse(raw) : []
+  }
+}
 
 const managementTab = ref('all') // all / published / review / rejected / drafts
 
@@ -183,7 +253,7 @@ function clearForm() {
   message.value = ''
 }
 
-function publish() {
+async function publish() {
   if (!title.value.trim()) {
     message.value = '请填写主题（不超过30字）'
     return
@@ -197,24 +267,98 @@ function publish() {
     return
   }
 
-  // create post in-memory
-  const id = Math.max(0, ...posts.value.map(p=>p.id)) + 1
-  posts.value.unshift({ id, title: title.value.trim(), content: content.value.trim(), tags: selectedTags.value.slice(), images: images.value.slice(), status: visibility.value === 'draft' ? 'draft' : 'review' })
+  const authStore = useAuthStore()
+  const userId = authStore.userId
+
+  const payload = {
+    userId,
+    title: title.value.trim(),
+    content: content.value.trim(),
+    // send data URLs (或可被后端解析的字符串数组)
+    images: images.value.map(i => i.data || ''),
+    tags: selectedTags.value.slice(),
+    visibility: visibility.value
+  }
+
   message.value = 'Publishing...'
-  setTimeout(() => {
-    message.value = '发布成功！已加入帖子管理'
-    // switch to management tab to show
-    activeTab.value = 'manage'
-    managementTab.value = 'all'
-    clearForm()
-  }, 600)
+  try {
+    const res = await createPost(payload)
+    // 如果后端返回创建的帖子对象，添加到本地管理列表，优先使用后端返回
+    const newPost = res && res.id ? res : {
+      id: Math.max(0, ...posts.value.map(p => p.id)) + 1,
+      title: payload.title,
+      content: payload.content,
+      tags: payload.tags,
+      images: payload.images.map(d => ({ data: d })),
+      status: payload.visibility === 'draft' ? 'draft' : 'review'
+    }
+    // 如果后端保存成功，优先从后端刷新；否则使用本地回退对象并缓存
+    try {
+      // 如果后端返回了 id，重新加载后端数据可以保证一致
+      if (res && res.id) {
+        await loadPosts()
+      } else {
+        posts.value.unshift(newPost)
+        const authStore = useAuthStore()
+        const userId = authStore.userId
+        if (userId) localStorage.setItem(LOCAL_POSTS_KEY(userId), JSON.stringify(posts.value))
+      }
+      message.value = '发布成功！已同步到你的账号'
+      activeTab.value = 'manage'
+      managementTab.value = 'all'
+      clearForm()
+    } catch (reloadErr) {
+      // 如果刷新失败，仍向用户展示成功并保留本地数据
+      posts.value.unshift(newPost)
+      const authStore = useAuthStore()
+      const userId = authStore.userId
+      if (userId) localStorage.setItem(LOCAL_POSTS_KEY(userId), JSON.stringify(posts.value))
+      message.value = '发布成功（离线缓存），稍后会与服务器同步'
+      activeTab.value = 'manage'
+      managementTab.value = 'all'
+      clearForm()
+    }
+  } catch (err) {
+    message.value = err.message || '发布失败，请重试'
+  }
 }
 
-function saveDraft() {
-  const id = Math.max(0, ...posts.value.map(p=>p.id)) + 1
-  posts.value.unshift({ id, title: title.value.trim(), content: content.value.trim(), tags: selectedTags.value.slice(), images: images.value.slice(), status: 'draft' })
-  message.value = '已保存为草稿'
-  clearForm()
+async function saveDraft() {
+  const authStore = useAuthStore()
+  const userId = authStore.userId
+
+  const payload = {
+    userId,
+    title: title.value.trim(),
+    content: content.value.trim(),
+    images: images.value.map(i => i.data || ''),
+    tags: selectedTags.value.slice(),
+    visibility: 'draft'
+  }
+
+  message.value = 'Saving draft...'
+  try {
+    const res = await createPost(payload)
+    const draftPost = res && res.id ? res : { id: Math.max(0, ...posts.value.map(p => p.id)) + 1, title: payload.title, content: payload.content, tags: payload.tags, images: payload.images.map(d => ({ data: d })), status: 'draft' }
+    // 尝试刷新后端数据
+    try {
+      if (res && res.id) {
+        await loadPosts()
+      } else {
+        posts.value.unshift(draftPost)
+        if (userId) localStorage.setItem(LOCAL_POSTS_KEY(userId), JSON.stringify(posts.value))
+      }
+      message.value = '已保存为草稿（已同步）'
+      clearForm()
+    } catch (e) {
+      posts.value.unshift(draftPost)
+      if (userId) localStorage.setItem(LOCAL_POSTS_KEY(userId), JSON.stringify(posts.value))
+      message.value = '已保存为草稿（本地缓存）'
+      clearForm()
+    }
+  } catch (err) {
+    message.value = err.message || '保存草稿失败'
+  }
 }
 
 function editDraft(id) {
@@ -230,6 +374,16 @@ function editDraft(id) {
   activeTab.value = 'new'
 }
 
+// load posts when component mounts
+onMounted(() => {
+  loadPosts()
+})
+
+// when user opens management tab, reload to ensure latest from backend
+watch(activeTab, (v) => {
+  if (v === 'manage') loadPosts()
+})
+
 function statusText(s) {
   if (s === 'published') return '已发布'
   if (s === 'review') return '审核中'
@@ -243,9 +397,49 @@ function setStatus(id, st) {
   if (p) p.status = st
 }
 
-function removePost(id) {
-  const idx = posts.value.findIndex(x => x.id === id)
-  if (idx !== -1) posts.value.splice(idx, 1)
+async function removePost(id) {
+  // confirm first
+  const ok = window.confirm('确定要删除该帖子吗？该操作不可恢复。')
+  if (!ok) return
+
+  message.value = '删除中...'
+  try {
+    await deletePost(id)
+    // 删除成功后重新从后端拉取最新数据
+    await loadPosts()
+    message.value = '删除成功'
+  } catch (err) {
+    // 如果删除接口失败，尝试在本地删除并缓存（退路），但提示用户
+    const idx = posts.value.findIndex(x => x.id === id)
+    if (idx !== -1) posts.value.splice(idx, 1)
+    const authStore = useAuthStore()
+    const userId = authStore.userId
+    if (userId) localStorage.setItem(LOCAL_POSTS_KEY(userId), JSON.stringify(posts.value))
+    message.value = err.message || '删除失败（已在本地移除），请稍后重试同步到服务器'
+  }
+}
+
+/**
+ * 返回用于卡片封面的图片 URL 或 dataURL
+ */
+function coverFor(p) {
+  try {
+    if (!p) return 'https://via.placeholder.com/400x240?text=No+Image'
+    const imgs = p.images || []
+    if (imgs.length === 0) return 'https://via.placeholder.com/400x240?text=No+Image'
+    const first = imgs[0]
+    // 支持多种形态：字符串、{url}, {data}, {path}, {thumb}, {imageUrl}
+    if (typeof first === 'string') return first
+    if (first.data) return first.data
+    if (first.url) return first.url
+    if (first.path) return first.path
+    if (first.thumb) return first.thumb
+    if (first.imageUrl) return first.imageUrl
+    // last resort: stringify object to data URL? just show placeholder
+    return 'https://via.placeholder.com/400x240?text=No+Image'
+  } catch (e) {
+    return 'https://via.placeholder.com/400x240?text=No+Image'
+  }
 }
 </script>
 
