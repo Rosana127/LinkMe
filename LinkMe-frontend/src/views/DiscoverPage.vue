@@ -88,6 +88,10 @@
             <span class="iconify" :data-icon="post.favorited ? 'mdi:bookmark' : 'mdi:bookmark-outline'" data-inline="false"></span>
             <span>{{ post.favorites || 0 }}</span>
           </button>
+          <button class="action-btn" @click.stop="openPost(post.id)">
+            <span class="iconify" data-icon="mdi:comment-outline" data-inline="false"></span>
+            <span>{{ post.comments || 0 }}</span>
+          </button>
         </div>
       </router-link>
     </div>
@@ -95,20 +99,68 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 
 // 当前激活的分类
 const activeCategory = ref('recommended')
 // 搜索查询
 const searchQuery = ref('')
 
-import { recommendedPosts as recommendedData, followingPosts as followingData } from '@/data/posts'
+import { getPosts } from '@/api/posts'
 
-// 推荐的帖子数据（从共享模块读取）
-const recommendedPosts = ref(recommendedData)
+// 全部帖子（从后端拉取）
+const allPosts = ref([])
 
-// 关注的帖子数据（从共享模块读取）
-const followingPosts = ref(followingData)
+// 推荐与关注视图基于 allPosts 派生
+const recommendedPosts = ref([])
+const followingPosts = ref([])
+
+function mapBackendToView(raw) {
+  // raw: backend post object
+  const author = raw.user || raw.author || raw.creator || {}
+  const images = Array.isArray(raw.images) ? raw.images : (raw.images ? [raw.images] : [])
+  const firstImage = images.length ? (typeof images[0] === 'string' ? images[0] : (images[0].url || images[0].path || images[0].data || null)) : null
+  return {
+    id: raw.id ?? raw._id ?? raw.postId,
+    author: {
+      avatar: author.avatar || author.photo || author.image || 'https://via.placeholder.com/80',
+      name: author.nickname || author.name || author.username || '匿名',
+      handle: author.handle || author.username || (author.nickname ? author.nickname.replace(/\s+/g, '') : '')
+    },
+    time: raw.createdAt ? new Date(raw.createdAt).toLocaleString() : (raw.time || ''),
+    location: raw.location || '',
+    caption: raw.title || raw.content || raw.caption || '',
+    hashtags: Array.isArray(raw.tags) ? raw.tags.join(' ') : (raw.tags || ''),
+    image: firstImage,
+    likes: raw.likes ?? raw.likeCount ?? 0,
+    liked: false,
+    favorites: raw.favorites ?? raw.bookmarks ?? 0,
+    comments: raw.commentsCount ?? raw.comment_count ?? (Array.isArray(raw.comments) ? raw.comments.length : (raw.commentNum ?? 0)),
+    favorited: false
+  }
+}
+
+async function loadExplore() {
+  try {
+    const res = await getPosts()
+    const arr = Array.isArray(res) ? res : (res?.data && Array.isArray(res.data) ? res.data : [])
+    allPosts.value = arr.map(mapBackendToView)
+    // simple split: recommended = all, following = those with author.isFollowed true (if backend provides)
+    recommendedPosts.value = allPosts.value
+    followingPosts.value = allPosts.value.filter(p => p.author && p.author.isFollowed)
+  } catch (e) {
+    console.error('加载探索帖子失败', e)
+    allPosts.value = []
+    recommendedPosts.value = []
+    followingPosts.value = []
+  }
+}
+
+const router = useRouter()
+function openPost(id) {
+  router.push({ name: 'post', params: { id } })
+}
 
 // 根据当前分类和搜索词过滤帖子
 const filteredPosts = computed(() => {
@@ -124,6 +176,10 @@ const filteredPosts = computed(() => {
   }
   
   return posts
+})
+
+onMounted(() => {
+  loadExplore()
 })
 
 // toast for 收藏成功

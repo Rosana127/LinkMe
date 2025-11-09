@@ -47,6 +47,61 @@ export function deletePost(postId) {
   })
 }
 
-export default {
-  createPost
+/**
+ * 获取单个帖子详情
+ * @param {Number|String} postId
+ */
+export function getPost(postId) {
+  return request({
+    url: `/posts/${postId}`,
+    method: 'get'
+  })
 }
+
+/**
+ * 获取帖子评论列表
+ * @param {Number|String} postId
+ */
+export function getComments(postId) {
+  return request({
+    url: `/posts/${postId}/comments`,
+    method: 'get'
+  })
+}
+
+/**
+ * 创建评论
+ * @param {Number|String} postId
+ * @param {Object} commentData
+ */
+export function postComment(postId, commentData) {
+  return request({
+    url: `/posts/${postId}/comments`,
+    method: 'post',
+    data: commentData
+  })
+}
+
+/**
+ * 获取帖子列表（公共探索列表）
+ * 支持 query params，如 page, limit, userId 等
+ */
+export function getPosts(params = {}) {
+  return request({
+    url: '/posts',
+    method: 'get',
+    params
+  })
+}
+
+const postsApi = {
+  createPost,
+  getUserPosts,
+  deletePost,
+  getPosts,
+  getPost,
+  getComments,
+  postComment
+}
+
+export default postsApi

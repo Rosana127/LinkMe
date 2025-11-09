@@ -41,14 +41,21 @@
   <div v-if="showFavToast" class="toast">{{ favorited.value ? '收藏成功' : '已取消收藏' }}</div>
 
       <div class="comments-section">
-        <div class="comment" v-for="c in comments" :key="c.id">
-          <div class="comment-author">{{ c.author }}</div>
-          <div class="comment-text">{{ c.text }}</div>
-        </div>
-
         <div class="add-comment">
-          <input ref="commentInput" v-model="newComment" placeholder="写评论..." />
-          <button @click="addComment">发布</button>
+          <input ref="commentInput" v-model="newComment" placeholder="写评论..." @keydown.enter.prevent="addComment" />
+          <button @click="addComment" :disabled="loading">
+            <span v-if="loading">发布中...</span>
+            <span v-else>发布</span>
+          </button>
+        </div>
+        <div v-if="error" class="comment-error" style="color:#ef4444;margin-top:6px">{{ error }}</div>
+
+        <div class="comment" v-for="c in comments" :key="c.id">
+          <div style="display:flex; justify-content:space-between; align-items:center">
+            <div class="comment-author">{{ c.author }}</div>
+            <div class="comment-time" style="color:#9ca3af; font-size:12px">{{ formatTime(c.createdAt) }}</div>
+          </div>
+          <div class="comment-text">{{ c.text }}</div>
         </div>
       </div>
     </div>
@@ -56,25 +63,30 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { findPostById } from '@/data/posts'
+import { getPost, getComments, postComment } from '@/api/posts'
+import { useAuthStore } from '@/stores/auth'
 
 const route = useRoute()
 const router = useRouter()
+const authStore = useAuthStore()
 const id = route.params.id
-const post = ref(findPostById(id) || { author: {}, caption:'', hashtags:'', image:'', likes:0, comments:[] })
+
+const post = ref({ author: {}, caption:'', hashtags:'', image:'', likes:0 })
 
 // local reactive state for likes/comments
-const likes = ref(post.value.likes || 0)
-const comments = ref(post.value.comments ? [...post.value.comments] : [])
-const favorites = ref(post.value.favorites || 0)
+const likes = ref(0)
+const comments = ref([])
+const favorites = ref(0)
 const newComment = ref('')
 const commentInput = ref(null)
 
 // toggleable states
-const liked = ref(post.value.liked || false)
-const favorited = ref(post.value.favorited || false)
+const liked = ref(false)
+const favorited = ref(false)
+const loading = ref(false)
+const error = ref('')
 
 function toggleLike() {
   if (liked.value) {
@@ -110,17 +122,97 @@ function toastMessage(text) {
 
 function addComment() {
   if (!newComment.value.trim()) return
-  const c = { id: Date.now(), author: 'You', text: newComment.value.trim() }
-  comments.value.push(c)
-  newComment.value = ''
-  // 简单滚动到最后一条评论
-  setTimeout(() => {
-    const el = document.querySelector('.comments-section')
-    if (el) el.scrollTop = el.scrollHeight
-  }, 50)
+  // post comment to backend
+  const content = newComment.value.trim()
+  const userId = authStore.userId
+  const payload = {
+    postId: id,
+    userId: userId,
+    content,
+    // parentId should be null for top-level comments to avoid FK constraint failure
+    parentId: null
+  }
+  loading.value = true
+  postComment(id, payload).then(res => {
+    // after posting, reload comments
+    newComment.value = ''
+    loadComments()
+  }).catch(err => {
+    error.value = err.message || '发表评论失败'
+  }).finally(() => {
+    loading.value = false
+    // list is newest-first, ensure view shows top (newest) comment below input
+    setTimeout(() => { const el = document.querySelector('.comments-section'); if (el) el.scrollTop = 0 }, 100)
+  })
 }
 
 function focusCommentInput() { commentInput.value?.focus() }
+
+async function loadPost() {
+  loading.value = true
+  try {
+    const res = await getPost(id)
+    const data = res && res.id ? res : (res?.data ? res.data : res)
+    // map backend fields to view
+    const author = data.user || data.author || data.creator || {}
+    const images = Array.isArray(data.images) ? data.images : (data.images ? [data.images] : [])
+    const firstImage = images.length ? (typeof images[0] === 'string' ? images[0] : (images[0].url || images[0].path || images[0].data || null)) : null
+    post.value = {
+      id: data.id ?? data._id ?? data.postId,
+      author: {
+        avatar: author.avatar || author.photo || author.image || 'https://via.placeholder.com/80',
+        name: author.nickname || author.name || author.username || '匿名',
+        handle: author.handle || author.username || (author.nickname ? author.nickname.replace(/\s+/g, '') : '')
+      },
+      time: data.createdAt ? new Date(data.createdAt).toLocaleString() : (data.time || ''),
+      location: data.location || '',
+      caption: data.title || data.content || data.caption || '',
+      hashtags: Array.isArray(data.tags) ? data.tags.join(' ') : (data.tags || ''),
+      image: firstImage,
+      likes: data.likes ?? data.likeCount ?? 0,
+      favorites: data.favorites ?? data.bookmarks ?? 0
+    }
+    likes.value = post.value.likes
+    favorites.value = post.value.favorites || 0
+    // load comments
+    await loadComments()
+  } catch (e) {
+    error.value = e.message || '加载帖子失败'
+  } finally {
+    loading.value = false
+  }
+}
+
+async function loadComments() {
+  try {
+    const res = await getComments(id)
+    const arr = Array.isArray(res) ? res : (res?.data && Array.isArray(res.data) ? res.data : [])
+    comments.value = arr.map(c => ({ id: c.commentId ?? c.comment_id ?? c.id ?? c._id, author: c.userName || c.authorName || (c.user && (c.user.nickname || c.user.name)) || '匿名', text: c.content || c.text || '', createdAt: c.created_at ?? c.createdAt }))
+      // sort newest first so they appear directly below the input
+      .sort((a, b) => {
+        const ta = a.createdAt ? new Date(a.createdAt).getTime() : 0
+        const tb = b.createdAt ? new Date(b.createdAt).getTime() : 0
+        return tb - ta
+      })
+  } catch (e) {
+    // if comments endpoint not available, keep comments empty
+    comments.value = []
+  }
+}
+
+function formatTime(ts) {
+  if (!ts) return ''
+  try {
+    const d = new Date(ts)
+    return d.toLocaleString()
+  } catch (e) {
+    return ts
+  }
+}
+
+onMounted(() => {
+  loadPost()
+})
 </script>
 
 <style scoped>
