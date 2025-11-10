@@ -1,10 +1,9 @@
-# Snapgram - AI私聊交友恋爱社交平台
+# LinkMe - AI私聊交友恋爱社交平台
 
-这是一个基于Vue 3的AI私聊交友恋爱社交平台，采用现代化的暗色主题设计，参考Instagram风格。
 
 ## 🎨 设计特色
 
-- **暗色主题**: 采用黑色背景配紫色强调色的现代设计风格
+- **亮色主题**: 采用明亮背景配紫色强调色的现代设计风格
 - **三栏布局**: 侧边栏导航 + 主内容区 + 右侧推荐栏
 - **动态流**: 类似Instagram的Home Feed设计
 - **响应式设计**: 支持移动端和桌面端
@@ -27,7 +26,7 @@
 - **Vite**: 构建工具
 
 ### 🎨 界面特色
-- 暗色主题设计，时尚现代
+- 亮色主题设计，时尚现代
 - 紫色品牌色，增加活力
 - 简洁大方的布局设计
 - 流畅的交互动画效果
@@ -35,22 +34,39 @@
 ## 项目结构
 
 ```
-AI私聊交友恋爱社交平台设计_原型界面_V2_vue/
+LinkMe-frontend/
 ├── src/
-│   ├── components/
+│   ├── api/                     # API接口
+│   │   ├── posts.js             # 帖子相关API
+│   │   ├── request.js           # 请求封装
+│   │   └── user.js              # 用户相关API
+│   ├── components/              # 组件
 │   │   └── Sidebar.vue          # 侧边栏导航组件
-│   ├── views/
-│   │   ├── DiscoverPage.vue     # 发现页面
-│   │   ├── MatchPage.vue        # 匹配页面
-│   │   ├── ChatPage.vue         # 聊天页面
-│   │   └── ProfilePage.vue      # 个人中心页面
-│   ├── router/
+│   ├── data/                    # 数据文件
+│   │   └── posts.js             # 帖子数据
+│   ├── router/                  # 路由配置
 │   │   └── index.js             # 路由配置
+│   ├── stores/                  # 状态管理
+│   │   └── auth.js              # 认证状态管理
+│   ├── views/                   # 页面视图
+│   │   ├── ChatPage.vue         # 聊天页面
+│   │   ├── CreatePost.vue       # 创建帖子页面
+│   │   ├── DiscoverPage.vue     # 发现页面
+│   │   ├── HomePage.vue         # 首页
+│   │   ├── LoginPage.vue        # 登录页面
+│   │   ├── MatchPage.vue        # 匹配页面
+│   │   ├── PostDetail.vue       # 帖子详情页面
+│   │   ├── ProfilePage.vue      # 个人中心页面
+│   │   ├── RegisterPage.vue     # 注册页面
+│   │   └── SettingsPage.vue     # 设置页面
 │   ├── App.vue                  # 主应用组件
-│   └── main.js                  # 应用入口
+│   ├── main.js                  # 应用入口
+│   └── style.css                # 全局样式
 ├── index.html                   # HTML模板
 ├── package.json                 # 项目配置
 ├── vite.config.js              # Vite配置
+├── auto-imports.d.ts           # 自动导入类型定义
+├── components.d.ts              # 组件类型定义
 └── README.md                   # 项目说明
 ```
 
@@ -62,7 +78,7 @@ AI私聊交友恋爱社交平台设计_原型界面_V2_vue/
 
 ### 安装依赖
 ```bash
-cd AI私聊交友恋爱社交平台设计_原型界面_V2_vue
+cd LinkMe-frontend
 npm install
 ```
 
@@ -83,29 +99,57 @@ npm run preview
 
 ## 主要页面说明
 
-### 1. 发现页面 (DiscoverPage)
+### 1. 首页 (HomePage)
+- 用户动态流展示
+- 帖子浏览和互动
+- 用户推荐
+
+### 2. 登录页面 (LoginPage)
+- 用户登录功能
+- 表单验证
+
+### 3. 注册页面 (RegisterPage)
+- 新用户注册
+- 表单验证
+
+### 4. 发现页面 (DiscoverPage)
 - 展示推荐内容卡片
 - 支持内容分类和搜索
 - 热门话题展示
 - 用户互动功能（点赞、评论、分享）
 
-### 2. 匹配页面 (MatchPage)
+### 5. 匹配页面 (MatchPage)
 - 用户卡片滑动匹配
 - AI匹配度分析
 - 匹配统计图表
 - 推荐用户列表
 
-### 3. 聊天页面 (ChatPage)
+### 6. 聊天页面 (ChatPage)
 - 聊天列表管理
 - 实时消息发送
 - AI助手建议
 - 消息搜索功能
 
-### 4. 个人中心页面 (ProfilePage)
+### 7. 创建帖子页面 (CreatePost)
+- 发布新帖子
+- 图片上传
+- 内容编辑
+
+### 8. 帖子详情页面 (PostDetail)
+- 帖子详细内容展示
+- 评论功能
+- 互动功能（点赞、收藏等）
+
+### 9. 个人中心页面 (ProfilePage)
 - 用户资料展示
 - 数据统计图表
 - 账户设置选项
 - 互动趋势分析
+
+### 10. 设置页面 (SettingsPage)
+- 用户设置管理
+- 隐私设置
+- 账户配置
 
 ## 技术亮点
 
@@ -142,5 +186,5 @@ MIT License
 ## 联系方式
 
 如有问题或建议，请通过以下方式联系：
-- 邮箱: your-email@example.com
-- GitHub: your-github-username
+- 邮箱: huangy837@mail2.sysu.edu.cn
+- GitHub: Helina-cloud
