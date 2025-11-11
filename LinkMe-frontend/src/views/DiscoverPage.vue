@@ -130,7 +130,7 @@ function mapBackendToView(raw) {
     },
     time: raw.createdAt ? new Date(raw.createdAt).toLocaleString() : (raw.time || ''),
     location: raw.location || '',
-    caption: raw.title || raw.content || raw.caption || '',
+    caption: raw.topic || raw.title || raw.content || raw.caption || '',
     hashtags: Array.isArray(raw.tags) ? raw.tags.join(' ') : (raw.tags || ''),
     image: firstImage,
     likes: raw.likes ?? raw.likeCount ?? 0,

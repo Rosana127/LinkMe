@@ -9,9 +9,9 @@
     <!-- New Post view (原来表单) -->
     <div v-if="activeTab === 'new'" class="create-card">
       <label class="field">
-        <div class="label">Title (主题，最多 30 字)</div>
-        <input v-model="title" type="text" maxlength="30" placeholder="输入主题，不超过30字" />
-        <div class="meta">{{ title.length }} / 30</div>
+        <div class="label">Topic (主题，最多 30 字)</div>
+        <input v-model="topic" type="text" maxlength="30" placeholder="输入主题，不超过30字" />
+        <div class="meta">{{ topic.length }} / 30</div>
       </label>
 
       <label class="field">
@@ -117,7 +117,7 @@ const router = useRouter()
 const activeTab = ref('new') // 'new' or 'manage'
 
 // create form state
-const title = ref('')
+const topic = ref('')
 const content = ref('')
 const images = ref([]) // { file, data }
 const selectedTags = ref([])
@@ -158,7 +158,8 @@ function normalizePost(p) {
   // normalize id
   post.id = p.id ?? p._id ?? p.postId ?? null
   // normalize title/content/tags
-  post.title = p.title ?? p.subject ?? p.heading ?? ''
+  post.title = p.topic ?? p.title ?? p.subject ?? p.heading ?? ''
+  post.topic = p.topic ?? post.title ?? ''
   post.content = p.content ?? p.body ?? p.text ?? ''
   post.tags = p.tags ?? p.tagNames ?? []
   // normalize images: backend may return array of strings (urls) or objects
@@ -245,7 +246,7 @@ function toggleTag(tag) {
 }
 
 function clearForm() {
-  title.value = ''
+  topic.value = ''
   content.value = ''
   images.value = []
   selectedTags.value = []
@@ -254,11 +255,11 @@ function clearForm() {
 }
 
 async function publish() {
-  if (!title.value.trim()) {
+  if (!topic.value.trim()) {
     message.value = '请填写主题（不超过30字）'
     return
   }
-  if (title.value.length > 30) {
+  if (topic.value.length > 30) {
     message.value = '主题不能超过30字'
     return
   }
@@ -272,7 +273,7 @@ async function publish() {
 
   const payload = {
     userId,
-    title: title.value.trim(),
+    topic: topic.value.trim(),
     content: content.value.trim(),
     // send data URLs (或可被后端解析的字符串数组)
     images: images.value.map(i => i.data || ''),
@@ -286,7 +287,8 @@ async function publish() {
     // 如果后端返回创建的帖子对象，添加到本地管理列表，优先使用后端返回
     const newPost = res && res.id ? res : {
       id: Math.max(0, ...posts.value.map(p => p.id)) + 1,
-      title: payload.title,
+      title: payload.topic,
+      topic: payload.topic,
       content: payload.content,
       tags: payload.tags,
       images: payload.images.map(d => ({ data: d })),
@@ -329,7 +331,7 @@ async function saveDraft() {
 
   const payload = {
     userId,
-    title: title.value.trim(),
+    topic: topic.value.trim(),
     content: content.value.trim(),
     images: images.value.map(i => i.data || ''),
     tags: selectedTags.value.slice(),
@@ -339,7 +341,7 @@ async function saveDraft() {
   message.value = 'Saving draft...'
   try {
     const res = await createPost(payload)
-    const draftPost = res && res.id ? res : { id: Math.max(0, ...posts.value.map(p => p.id)) + 1, title: payload.title, content: payload.content, tags: payload.tags, images: payload.images.map(d => ({ data: d })), status: 'draft' }
+    const draftPost = res && res.id ? res : { id: Math.max(0, ...posts.value.map(p => p.id)) + 1, title: payload.topic, topic: payload.topic, content: payload.content, tags: payload.tags, images: payload.images.map(d => ({ data: d })), status: 'draft' }
     // 尝试刷新后端数据
     try {
       if (res && res.id) {
@@ -365,7 +367,7 @@ function editDraft(id) {
   const p = posts.value.find(x => x.id === id && x.status === 'draft')
   if (!p) return
   // load into form
-  title.value = p.title
+  topic.value = p.topic || p.title || ''
   content.value = p.content
   selectedTags.value = p.tags.slice()
   images.value = p.images.slice()
