@@ -122,15 +122,16 @@ const followingPosts = ref([])
 
 function mapBackendToView(raw) {
   // raw: backend post object
+  // 后端现在直接在Post对象中包含用户信息字段（nickname, username, avatarUrl）
   const author = raw.user || raw.author || raw.creator || {}
   const images = Array.isArray(raw.images) ? raw.images : (raw.images ? [raw.images] : [])
   const firstImage = images.length ? (typeof images[0] === 'string' ? images[0] : (images[0].url || images[0].path || images[0].data || null)) : null
   return {
     id: raw.id ?? raw._id ?? raw.postId,
     author: {
-      avatar: author.avatar || author.photo || author.image || 'https://via.placeholder.com/80',
-      name: author.nickname || author.name || author.username || '匿名',
-      handle: author.handle || author.username || (author.nickname ? author.nickname.replace(/\s+/g, '') : '')
+      avatar: raw.avatarUrl || author.avatar || author.photo || author.image || author.avatarUrl || 'https://via.placeholder.com/80',
+      name: raw.nickname || author.nickname || raw.username || author.name || author.username || '匿名',
+      handle: raw.username || author.handle || author.username || (raw.nickname ? raw.nickname.replace(/\s+/g, '') : (author.nickname ? author.nickname.replace(/\s+/g, '') : ''))
     },
     time: raw.createdAt ? new Date(raw.createdAt).toLocaleString() : (raw.time || ''),
     location: raw.location || '',

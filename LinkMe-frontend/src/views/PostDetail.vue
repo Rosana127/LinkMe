@@ -160,19 +160,20 @@ async function loadPost() {
     const res = await getPost(id)
     const data = res && res.id ? res : (res?.data ? res.data : res)
     // map backend fields to view
+    // 后端现在直接在Post对象中包含用户信息字段（nickname, username, avatarUrl）
     const author = data.user || data.author || data.creator || {}
     const images = Array.isArray(data.images) ? data.images : (data.images ? [data.images] : [])
     const firstImage = images.length ? (typeof images[0] === 'string' ? images[0] : (images[0].url || images[0].path || images[0].data || null)) : null
     post.value = {
       id: data.id ?? data._id ?? data.postId,
       author: {
-        avatar: author.avatar || author.photo || author.image || 'https://via.placeholder.com/80',
-        name: author.nickname || author.name || author.username || '匿名',
-        handle: author.handle || author.username || (author.nickname ? author.nickname.replace(/\s+/g, '') : '')
+        avatar: data.avatarUrl || author.avatar || author.photo || author.image || author.avatarUrl || 'https://via.placeholder.com/80',
+        name: data.nickname || author.nickname || data.username || author.name || author.username || '匿名',
+        handle: data.username || author.handle || author.username || (data.nickname ? data.nickname.replace(/\s+/g, '') : (author.nickname ? author.nickname.replace(/\s+/g, '') : ''))
       },
       time: data.createdAt ? new Date(data.createdAt).toLocaleString() : (data.time || ''),
       location: data.location || '',
-      caption: data.title || data.content || data.caption || '',
+      caption: data.topic || data.title || data.content || data.caption || '',
       hashtags: Array.isArray(data.tags) ? data.tags.join(' ') : (data.tags || ''),
       image: firstImage,
       likes: data.likes ?? data.likeCount ?? 0,
@@ -193,7 +194,12 @@ async function loadComments() {
   try {
     const res = await getComments(id)
     const arr = Array.isArray(res) ? res : (res?.data && Array.isArray(res.data) ? res.data : [])
-    comments.value = arr.map(c => ({ id: c.commentId ?? c.comment_id ?? c.id ?? c._id, author: c.userName || c.authorName || (c.user && (c.user.nickname || c.user.name)) || '匿名', text: c.content || c.text || '', createdAt: c.created_at ?? c.createdAt }))
+    comments.value = arr.map(c => ({ 
+      id: c.commentId ?? c.comment_id ?? c.id ?? c._id, 
+      author: c.nickname || c.userName || c.authorName || (c.user && (c.user.nickname || c.user.name)) || c.username || '匿名', 
+      text: c.content || c.text || '', 
+      createdAt: c.created_at ?? c.createdAt 
+    }))
       // sort newest first so they appear directly below the input
       .sort((a, b) => {
         const ta = a.createdAt ? new Date(a.createdAt).getTime() : 0
