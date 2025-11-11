@@ -92,14 +92,16 @@
 
 <script setup>
 import { useRouter } from 'vue-router'
+import { useAuthStore } from '@/stores/auth'
 
 const router = useRouter()
+const authStore = useAuthStore()
 
 const handleLogout = () => {
-  // 这里可以添加登出逻辑
-  console.log('Logging out...')
-  // 例如：清除token、重定向到登录页等
-  // router.push('/login')
+  // 调用authStore的logout方法清除登录状态
+  authStore.logout()
+  // 跳转到登录页
+  router.push('/login')
 }
 </script>
 

@@ -1,5 +1,11 @@
 <template>
   <div class="post-detail-page">
+    <!-- 返回按钮 -->
+    <button @click="goBack" class="back-button">
+      <span class="iconify" data-icon="mdi:arrow-left" data-inline="false"></span>
+      <span>返回</span>
+    </button>
+    
     <div class="post-detail-card">
       <div class="post-header">
         <img :src="post.author.avatar" class="user-avatar" />
@@ -210,13 +216,57 @@ function formatTime(ts) {
   }
 }
 
+function goBack() {
+  // 返回到上一个页面，如果没有历史记录则返回到explore页面
+  if (window.history.length > 1) {
+    router.back()
+  } else {
+    router.push('/discover')
+  }
+}
+
 onMounted(() => {
   loadPost()
 })
 </script>
 
 <style scoped>
-.post-detail-page { max-width: 800px; margin: 80px auto; }
+.post-detail-page { 
+  max-width: 800px; 
+  margin: 80px auto; 
+  position: relative;
+}
+
+.back-button {
+  position: fixed;
+  top: 20px;
+  left: 300px; /* 放在侧边栏右侧，侧边栏宽度280px + 20px间距 */
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 18px;
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.8);
+  border-radius: 8px;
+  color: #333;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  z-index: 1001; /* 高于侧边栏的z-index: 1000 */
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.back-button:hover {
+  background: rgba(255, 255, 255, 1);
+  transform: translateX(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.back-button .iconify {
+  font-size: 18px;
+}
 .post-detail-card { background:#fff; padding:20px; border-radius:10px; box-shadow:0 4px 12px rgba(0,0,0,0.05) }
 .post-header { display:flex; align-items:center; gap:12px }
 .user-avatar { width:48px; height:48px; border-radius:50%; object-fit:cover }

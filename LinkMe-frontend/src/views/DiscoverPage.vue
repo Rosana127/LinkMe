@@ -14,7 +14,7 @@
           推荐
         </button>
         <button 
-          @click="activeCategory = 'following'"
+          @click="handleFollowingClick"
           :class="['category-btn', { active: activeCategory === 'following' }]"
         >
           关注
@@ -99,8 +99,12 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
+import { useAuthStore } from '@/stores/auth'
+
+const authStore = useAuthStore()
+const isAuthenticated = computed(() => authStore.isAuthenticated)
 
 // 当前激活的分类
 const activeCategory = ref('recommended')
@@ -151,6 +155,11 @@ async function loadExplore() {
     followingPosts.value = allPosts.value.filter(p => p.author && p.author.isFollowed)
   } catch (e) {
     console.error('加载探索帖子失败', e)
+    // 如果是401错误且未登录，这是正常的，不显示错误
+    // 其他错误可能是网络问题或服务器错误
+    if (e.message && !e.message.includes('401') && !e.message.includes('未授权')) {
+      console.warn('获取帖子列表失败，可能是网络问题或服务器错误')
+    }
     allPosts.value = []
     recommendedPosts.value = []
     followingPosts.value = []
@@ -162,9 +171,29 @@ function openPost(id) {
   router.push({ name: 'post', params: { id } })
 }
 
+// 处理关注按钮点击
+function handleFollowingClick() {
+  if (!isAuthenticated.value) {
+    // 未登录时跳转到登录页
+    router.push('/login')
+  } else {
+    // 已登录时切换到关注
+    activeCategory.value = 'following'
+  }
+}
+
+// 监听登录状态变化，如果未登录则切换到推荐
+watch(isAuthenticated, (newVal) => {
+  if (!newVal) {
+    activeCategory.value = 'recommended'
+  }
+})
+
 // 根据当前分类和搜索词过滤帖子
 const filteredPosts = computed(() => {
-  let posts = activeCategory.value === 'recommended' ? recommendedPosts.value : followingPosts.value
+  // 如果未登录，只显示推荐内容
+  const category = (!isAuthenticated.value || activeCategory.value === 'recommended') ? 'recommended' : 'following'
+  let posts = category === 'recommended' ? recommendedPosts.value : followingPosts.value
   
   if (searchQuery.value) {
     const query = searchQuery.value.toLowerCase()

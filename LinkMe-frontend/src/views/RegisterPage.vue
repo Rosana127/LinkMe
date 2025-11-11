@@ -69,9 +69,9 @@
             v-model="form.password"
             type="password"
             class="form-input"
-            placeholder="请输入密码（至少6位）"
+            placeholder="请输入密码（至少8位）"
             required
-            minlength="6"
+            minlength="8"
           />
         </div>
 
