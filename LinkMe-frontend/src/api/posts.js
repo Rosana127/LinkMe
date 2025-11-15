@@ -2,7 +2,7 @@ import request from './request'
 
 /**
  * 创建帖子
- * @param {Object} postData { userId, title, content, images, tags, visibility }
+ * @param {Object} postData { userId, topic, content, images, tags, visibility }
  */
 export function createPost(postData) {
   // 后端示例期望: { userId, content, images: [string], tags: [...] }

@@ -82,14 +82,15 @@ request.interceptors.response.use(
       const res = error.response.data
       
       if (status === 401) {
-        // token过期或未授权，清除用户信息并跳转到登录页
-        console.warn('[Auth] Token无效或已过期，清除登录状态')
+        // token过期或未授权，只有在已登录状态下才清除用户信息
         const authStore = useAuthStore()
-        authStore.logout()
-        // 只有在非登录页面才跳转，避免无限循环
-        if (window.location.pathname !== '/login' && window.location.pathname !== '/register') {
-          window.location.href = '/login?redirect=' + encodeURIComponent(window.location.pathname)
+        if (authStore.isAuthenticated) {
+          authStore.logout()
         }
+        // 未登录用户访问需要认证的接口时，统一显示友好的提示
+        // 如果有后端返回的错误消息，优先使用；否则使用默认提示
+        const errorMessage = (res && res.message) ? res.message : '请先登录账号'
+        return Promise.reject(new Error(errorMessage))
       }
       
       // 如果有后端返回的错误消息，使用它
@@ -102,9 +103,6 @@ request.interceptors.response.use(
       switch (status) {
         case 400:
           message = '请求参数错误'
-          break
-        case 401:
-          message = '未授权，请重新登录'
           break
         case 403:
           message = '没有权限访问'

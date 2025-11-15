@@ -1,5 +1,11 @@
 <template>
   <div class="post-detail-page">
+    <!-- 返回按钮 -->
+    <button @click="goBack" class="back-button">
+      <span class="iconify" data-icon="mdi:arrow-left" data-inline="false"></span>
+      <span>返回</span>
+    </button>
+    
     <div class="post-detail-card">
       <div class="post-header">
         <img :src="post.author.avatar" class="user-avatar" />
@@ -154,19 +160,20 @@ async function loadPost() {
     const res = await getPost(id)
     const data = res && res.id ? res : (res?.data ? res.data : res)
     // map backend fields to view
+    // 后端现在直接在Post对象中包含用户信息字段（nickname, username, avatarUrl）
     const author = data.user || data.author || data.creator || {}
     const images = Array.isArray(data.images) ? data.images : (data.images ? [data.images] : [])
     const firstImage = images.length ? (typeof images[0] === 'string' ? images[0] : (images[0].url || images[0].path || images[0].data || null)) : null
     post.value = {
       id: data.id ?? data._id ?? data.postId,
       author: {
-        avatar: author.avatar || author.photo || author.image || 'https://via.placeholder.com/80',
-        name: author.nickname || author.name || author.username || '匿名',
-        handle: author.handle || author.username || (author.nickname ? author.nickname.replace(/\s+/g, '') : '')
+        avatar: data.avatarUrl || author.avatar || author.photo || author.image || author.avatarUrl || 'https://via.placeholder.com/80',
+        name: data.nickname || author.nickname || data.username || author.name || author.username || '匿名',
+        handle: data.username || author.handle || author.username || (data.nickname ? data.nickname.replace(/\s+/g, '') : (author.nickname ? author.nickname.replace(/\s+/g, '') : ''))
       },
       time: data.createdAt ? new Date(data.createdAt).toLocaleString() : (data.time || ''),
       location: data.location || '',
-      caption: data.title || data.content || data.caption || '',
+      caption: data.topic || data.title || data.content || data.caption || '',
       hashtags: Array.isArray(data.tags) ? data.tags.join(' ') : (data.tags || ''),
       image: firstImage,
       likes: data.likes ?? data.likeCount ?? 0,
@@ -187,7 +194,12 @@ async function loadComments() {
   try {
     const res = await getComments(id)
     const arr = Array.isArray(res) ? res : (res?.data && Array.isArray(res.data) ? res.data : [])
-    comments.value = arr.map(c => ({ id: c.commentId ?? c.comment_id ?? c.id ?? c._id, author: c.userName || c.authorName || (c.user && (c.user.nickname || c.user.name)) || '匿名', text: c.content || c.text || '', createdAt: c.created_at ?? c.createdAt }))
+    comments.value = arr.map(c => ({ 
+      id: c.commentId ?? c.comment_id ?? c.id ?? c._id, 
+      author: c.nickname || c.userName || c.authorName || (c.user && (c.user.nickname || c.user.name)) || c.username || '匿名', 
+      text: c.content || c.text || '', 
+      createdAt: c.created_at ?? c.createdAt 
+    }))
       // sort newest first so they appear directly below the input
       .sort((a, b) => {
         const ta = a.createdAt ? new Date(a.createdAt).getTime() : 0
@@ -210,13 +222,57 @@ function formatTime(ts) {
   }
 }
 
+function goBack() {
+  // 返回到上一个页面，如果没有历史记录则返回到explore页面
+  if (window.history.length > 1) {
+    router.back()
+  } else {
+    router.push('/discover')
+  }
+}
+
 onMounted(() => {
   loadPost()
 })
 </script>
 
 <style scoped>
-.post-detail-page { max-width: 800px; margin: 80px auto; }
+.post-detail-page { 
+  max-width: 800px; 
+  margin: 80px auto; 
+  position: relative;
+}
+
+.back-button {
+  position: fixed;
+  top: 20px;
+  left: 300px; /* 放在侧边栏右侧，侧边栏宽度280px + 20px间距 */
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 18px;
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.8);
+  border-radius: 8px;
+  color: #333;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  z-index: 1001; /* 高于侧边栏的z-index: 1000 */
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.back-button:hover {
+  background: rgba(255, 255, 255, 1);
+  transform: translateX(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.back-button .iconify {
+  font-size: 18px;
+}
 .post-detail-card { background:#fff; padding:20px; border-radius:10px; box-shadow:0 4px 12px rgba(0,0,0,0.05) }
 .post-header { display:flex; align-items:center; gap:12px }
 .user-avatar { width:48px; height:48px; border-radius:50%; object-fit:cover }
