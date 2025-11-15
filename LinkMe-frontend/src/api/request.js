@@ -15,9 +15,21 @@ request.interceptors.request.use(
     if (authStore.token) {
       config.headers.Authorization = `Bearer ${authStore.token}`
     }
+    
+    // 开发环境下的请求日志（便于调试）
+    if (import.meta.env.DEV) {
+      console.log(`[API Request] ${config.method?.toUpperCase()} ${config.url}`, {
+        params: config.params,
+        data: config.data,
+        hasToken: !!authStore.token,
+        headers: config.headers
+      })
+    }
+    
     return config
   },
   (error) => {
+    console.error('[API Request Error]', error)
     return Promise.reject(error)
   }
 )
@@ -25,6 +37,14 @@ request.interceptors.request.use(
 // 响应拦截器
 request.interceptors.response.use(
   (response) => {
+    // 开发环境下的响应日志（便于调试）
+    if (import.meta.env.DEV) {
+      console.log(`[API Response] ${response.config.method?.toUpperCase()} ${response.config.url}`, {
+        status: response.status,
+        data: response.data
+      })
+    }
+    
     // 兼容多种后端返回格式：
     // 1) 统一格式 { code, message, data } -> 返回 data 当 code === 200
     // 2) 传统 RESTful 返回直接的对象或数组 (可能伴随 HTTP 200/201) -> 直接返回 response.data
@@ -43,6 +63,19 @@ request.interceptors.response.use(
     return res
   },
   (error) => {
+    // 开发环境下的错误日志（便于调试）
+    if (import.meta.env.DEV) {
+      console.error('[API Error]', {
+        url: error.config?.url,
+        method: error.config?.method,
+        status: error.response?.status,
+        statusText: error.response?.statusText,
+        data: error.response?.data,
+        message: error.message,
+        request: error.request
+      })
+    }
+    
     // 处理HTTP错误
     if (error.response) {
       const status = error.response.status
@@ -50,8 +83,13 @@ request.interceptors.response.use(
       
       if (status === 401) {
         // token过期或未授权，清除用户信息并跳转到登录页
+        console.warn('[Auth] Token无效或已过期，清除登录状态')
         const authStore = useAuthStore()
         authStore.logout()
+        // 只有在非登录页面才跳转，避免无限循环
+        if (window.location.pathname !== '/login' && window.location.pathname !== '/register') {
+          window.location.href = '/login?redirect=' + encodeURIComponent(window.location.pathname)
+        }
       }
       
       // 如果有后端返回的错误消息，使用它
@@ -82,10 +120,15 @@ request.interceptors.response.use(
       }
       return Promise.reject(new Error(message))
     } else if (error.request) {
-      // 请求已发出但没有收到响应，可能是网络问题或CORS问题
-      return Promise.reject(new Error('网络连接失败，请检查网络或联系管理员'))
+      // 请求已发出但没有收到响应，可能是网络问题、CORS问题或后端服务未启动
+      console.error('[Network Error] 请求已发出但未收到响应', {
+        url: error.config?.url,
+        message: '请检查：1. 后端服务是否运行 2. 代理配置是否正确 3. 网络连接是否正常'
+      })
+      return Promise.reject(new Error('网络连接失败，请检查：1. 后端服务是否运行在 localhost:8080 2. 网络连接是否正常'))
     } else {
       // 其他错误
+      console.error('[Request Error]', error.message)
       return Promise.reject(new Error(error.message || '请求失败，请重试'))
     }
   }

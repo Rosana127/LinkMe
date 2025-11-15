@@ -34,8 +34,13 @@
       </div>
     </div>
     
+    <!-- 加载状态和错误提示 -->
+    <div v-if="loading" class="loading-message">加载中...</div>
+    <div v-if="error && !loading" class="error-message">{{ error }}</div>
+    
     <!-- 动态流 - 保持两列布局，确保有足够的顶部内边距避免被固定栏遮挡 -->
-    <div class="posts-grid">
+    <div v-if="!loading && !error" class="posts-grid">
+      <div v-if="filteredPosts.length === 0" class="empty-message">暂无帖子</div>
       <router-link v-for="post in filteredPosts" :key="post.id" :to="{ name: 'post', params: { id: post.id } }" class="post-card post-link">
         <!-- 用户信息 -->
         <div class="post-header">
@@ -116,6 +121,10 @@ const allPosts = ref([])
 const recommendedPosts = ref([])
 const followingPosts = ref([])
 
+// 加载状态和错误信息
+const loading = ref(false)
+const error = ref('')
+
 function mapBackendToView(raw) {
   // raw: backend post object
   const author = raw.user || raw.author || raw.creator || {}
@@ -142,6 +151,8 @@ function mapBackendToView(raw) {
 }
 
 async function loadExplore() {
+  loading.value = true
+  error.value = ''
   try {
     const res = await getPosts()
     const arr = Array.isArray(res) ? res : (res?.data && Array.isArray(res.data) ? res.data : [])
@@ -151,9 +162,12 @@ async function loadExplore() {
     followingPosts.value = allPosts.value.filter(p => p.author && p.author.isFollowed)
   } catch (e) {
     console.error('加载探索帖子失败', e)
+    error.value = e.message || '加载帖子失败，请检查网络连接或联系管理员'
     allPosts.value = []
     recommendedPosts.value = []
     followingPosts.value = []
+  } finally {
+    loading.value = false
   }
 }
 
@@ -431,4 +445,21 @@ function toggleLike(post) {
 .action-btn.liked { color: #ef4444 } /* 红心 */
 .action-btn.favorited { color: #10b981 } /* 绿色收藏 */
 .post-actions .iconify { transition: color 0.15s }
+
+/* 加载和错误消息样式 */
+.loading-message, .error-message, .empty-message {
+  text-align: center;
+  padding: 40px 20px;
+  color: #666;
+  font-size: 16px;
+}
+
+.error-message {
+  color: #ef4444;
+  background: #fee;
+  border: 1px solid #fcc;
+  border-radius: 8px;
+  margin: 20px;
+  padding: 20px;
+}
 </style>
