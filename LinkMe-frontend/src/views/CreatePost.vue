@@ -32,15 +32,21 @@
 
       <label class="field">
         <div class="label">Tags</div>
-        <div class="tags">
+        <div class="tags-scroll" role="listbox">
           <button
             v-for="tag in availableTags"
-            :key="tag"
-            :class="['tag', { selected: selectedTags.includes(tag) }]"
-            @click="toggleTag(tag)"
+            :key="tag.id || tag.name"
+            type="button"
+            :class="['tag-chip', { selected: selectedTagIds.includes(tag.id) }]"
+            @click="toggleTag(tag.id)"
           >
-            {{ tag }}
+            {{ tag.name }}
           </button>
+        </div>
+        <div class="tags-hint">
+          <span v-if="tagsLoading">标签加载中...</span>
+          <span v-else-if="tagsError">{{ tagsError }}</span>
+          <span v-else>点击选择标签（支持多选）</span>
         </div>
       </label>
 
@@ -110,6 +116,7 @@ import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { createPost, getUserPosts, deletePost } from '@/api/posts'
+import { fetchTagDefinitions } from '@/api/tags'
 
 const router = useRouter()
 
@@ -120,8 +127,18 @@ const activeTab = ref('new') // 'new' or 'manage'
 const topic = ref('')
 const content = ref('')
 const images = ref([]) // { file, data }
-const selectedTags = ref([])
-const availableTags = ref(['Art', 'Photography', 'Travel', 'Design', 'Food', 'Lifestyle'])
+const selectedTagIds = ref([])
+const DEFAULT_TAGS = [
+  { id: -1, name: 'Photography' },
+  { id: -2, name: 'Travel' },
+  { id: -3, name: 'Art' },
+  { id: -4, name: 'Design' },
+  { id: -5, name: 'Food' },
+  { id: -6, name: 'Lifestyle' }
+]
+const availableTags = ref([...DEFAULT_TAGS])
+const tagsLoading = ref(false)
+const tagsError = ref('')
 const visibility = ref('public')
 const message = ref('')
 const fileInput = ref(null)
@@ -161,7 +178,20 @@ function normalizePost(p) {
   post.title = p.topic ?? p.title ?? p.subject ?? p.heading ?? ''
   post.topic = p.topic ?? post.title ?? ''
   post.content = p.content ?? p.body ?? p.text ?? ''
-  post.tags = p.tags ?? p.tagNames ?? []
+  const rawTags = p.tags ?? p.tagIds ?? p.tagIDs ?? []
+  post.tags = Array.isArray(rawTags)
+    ? rawTags
+      .map(tag => {
+        if (typeof tag === 'number') return tag
+        if (typeof tag === 'string' && tag.trim() !== '' && !Number.isNaN(Number(tag))) return Number(tag)
+        if (typeof tag === 'object' && tag) {
+          const id = tag.tagId ?? tag.tag_id ?? tag.id ?? tag.tagID
+          if (id !== undefined && id !== null && !Number.isNaN(Number(id))) return Number(id)
+        }
+        return null
+      })
+      .filter(id => id !== null)
+    : []
   // normalize images: backend may return array of strings (urls) or objects
   if (Array.isArray(p.images)) {
     post.images = p.images.map(img => {
@@ -239,17 +269,71 @@ function removeImage(idx) {
   images.value.splice(idx, 1)
 }
 
-function toggleTag(tag) {
-  const i = selectedTags.value.indexOf(tag)
-  if (i === -1) selectedTags.value.push(tag)
-  else selectedTags.value.splice(i, 1)
+function toggleTag(tagId) {
+  const numericId = Number(tagId)
+  if (Number.isNaN(numericId)) return
+  const idx = selectedTagIds.value.indexOf(numericId)
+  if (idx === -1) {
+    selectedTagIds.value.push(numericId)
+  } else {
+    selectedTagIds.value.splice(idx, 1)
+  }
+}
+
+function normalizeTagName(item) {
+  if (!item) return ''
+  if (typeof item === 'string') return item.trim()
+  return (
+    item.name ||
+    item.tagName ||
+    item.tag ||
+    item.label ||
+    item.displayName ||
+    item.title ||
+    ''
+  ).trim()
+}
+
+function normalizeTagRecord(item) {
+  if (!item) return null
+  const type = (item.tagType || item.tag_type || item.type || '').toString().toLowerCase()
+  if (type && type !== 'post') return null
+  const name = normalizeTagName(item)
+  const idValue = item.tagId ?? item.tag_id ?? item.id ?? item.tagID ?? null
+  const parsedId = Number(idValue)
+  if (!name || Number.isNaN(parsedId)) return null
+  return { id: parsedId, name }
+}
+
+async function loadTags() {
+  tagsLoading.value = true
+  tagsError.value = ''
+  try {
+    const list = await fetchTagDefinitions({ tagType: 'post' })
+    const normalized = list
+      .map(normalizeTagRecord)
+      .filter(Boolean)
+      .filter((tag, index, arr) => arr.findIndex(t => t.id === tag.id) === index)
+    if (normalized.length) {
+      availableTags.value = normalized
+    } else {
+      tagsError.value = '暂无可用标签，已展示默认选项'
+      availableTags.value = [...DEFAULT_TAGS]
+    }
+  } catch (error) {
+    console.warn('标签列表加载失败', error)
+    tagsError.value = '标签加载失败，已使用默认标签'
+    availableTags.value = [...DEFAULT_TAGS]
+  } finally {
+    tagsLoading.value = false
+  }
 }
 
 function clearForm() {
   topic.value = ''
   content.value = ''
   images.value = []
-  selectedTags.value = []
+  selectedTagIds.value = []
   visibility.value = 'public'
   message.value = ''
 }
@@ -277,7 +361,7 @@ async function publish() {
     content: content.value.trim(),
     // send data URLs (或可被后端解析的字符串数组)
     images: images.value.map(i => i.data || ''),
-    tags: selectedTags.value.slice(),
+    tags: selectedTagIds.value.slice(),
     visibility: visibility.value
   }
 
@@ -334,7 +418,7 @@ async function saveDraft() {
     topic: topic.value.trim(),
     content: content.value.trim(),
     images: images.value.map(i => i.data || ''),
-    tags: selectedTags.value.slice(),
+    tags: selectedTagIds.value.slice(),
     visibility: 'draft'
   }
 
@@ -369,7 +453,7 @@ function editDraft(id) {
   // load into form
   topic.value = p.topic || p.title || ''
   content.value = p.content
-  selectedTags.value = p.tags.slice()
+  selectedTagIds.value = Array.isArray(p.tags) ? p.tags.slice() : []
   images.value = p.images.slice()
   // remove draft from list (will be re-saved or published)
   removePost(id)
@@ -379,6 +463,7 @@ function editDraft(id) {
 // load posts when component mounts
 onMounted(() => {
   loadPosts()
+  loadTags()
 })
 
 // when user opens management tab, reload to ensure latest from backend
@@ -593,25 +678,52 @@ input[type="text"], textarea, select {
   cursor: pointer;
 }
 
-.tags {
+.tags-scroll {
   display: flex;
-  gap: 8px;
   flex-wrap: wrap;
+  gap: 10px;
+  padding: 10px;
+  max-height: 96px;
+  overflow-y: auto;
+  border: 1px solid #2a2a2a;
+  border-radius: 12px;
+  background: #0c0c0c;
 }
 
-.tag {
-  padding: 8px 12px;
+.tags-scroll::-webkit-scrollbar {
+  width: 6px;
+}
+
+.tags-scroll::-webkit-scrollbar-thumb {
+  background: #2f2f2f;
+  border-radius: 6px;
+}
+
+.tag-chip {
+  padding: 8px 14px;
   border-radius: 999px;
-  background: #121212;
-  color: #ccc;
+  background: #151515;
+  color: #e5e5e5;
   border: 1px solid #2a2a2a;
   cursor: pointer;
+  transition: background 0.2s, color 0.2s, border-color 0.2s;
 }
 
-.tag.selected {
-  background: #8b5cf6;
-  color: white;
+.tag-chip:hover {
   border-color: #8b5cf6;
+  color: #fff;
+}
+
+.tag-chip.selected {
+  background: #8b5cf6;
+  color: #fff;
+  border-color: #8b5cf6;
+}
+
+.tags-hint {
+  margin-top: 6px;
+  font-size: 12px;
+  color: #a1a1aa;
 }
 
 .actions {
