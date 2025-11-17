@@ -115,7 +115,7 @@
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
-import { createPost, getUserPosts, deletePost } from '@/api/posts'
+import { createPost, getUserPosts, deletePost, getPost } from '@/api/posts'
 import { fetchTagDefinitions } from '@/api/tags'
 
 const router = useRouter()
@@ -170,6 +170,30 @@ function normalizeStatus(raw) {
   return 'review'
 }
 
+function normalizeImages(rawImages) {
+  if (!Array.isArray(rawImages)) return []
+  return rawImages
+    .map((img, idx) => {
+      if (!img) return null
+      if (typeof img === 'string') {
+        return { url: img, order: idx }
+      }
+      const order = img.imageOrder ?? img.image_order ?? img.order ?? idx
+      const url =
+        img.url ||
+        img.imageUrl ||
+        img.image_url ||
+        img.path ||
+        img.thumb ||
+        null
+      const data = img.data || img.base64 || null
+      if (!url && !data) return null
+      return { url, data, order }
+    })
+    .filter(Boolean)
+    .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+}
+
 function normalizePost(p) {
   const post = { ...p }
   // normalize id
@@ -193,17 +217,15 @@ function normalizePost(p) {
       .filter(id => id !== null)
     : []
   // normalize images: backend may return array of strings (urls) or objects
-  if (Array.isArray(p.images)) {
-    post.images = p.images.map(img => {
-      if (!img) return null
-      if (typeof img === 'string') return ({ url: img })
-      if (img.url) return ({ url: img.url })
-      if (img.path) return ({ url: img.path })
-      return img
-    }).filter(Boolean)
-  } else {
-    post.images = []
-  }
+  const rawImages =
+    p.images ??
+    p.postImages ??
+    p.imageList ??
+    p.imagesList ??
+    p.postImageList ??
+    p.post_images ??
+    []
+  post.images = normalizeImages(rawImages)
   // normalize status from several possible fields
   post.status = normalizeStatus(p.status ?? p.state ?? p.reviewStatus ?? p.auditStatus ?? (p.published ? 2 : undefined) ?? (p.isDraft ? 0 : undefined))
   return post
@@ -223,6 +245,7 @@ async function loadPosts() {
     const list = await getUserPosts(userId)
     const arr = Array.isArray(list) ? list : (list?.data && Array.isArray(list.data) ? list.data : [])
     posts.value = arr.map(normalizePost)
+    await hydratePostCovers(posts.value)
     // cache to localStorage
     localStorage.setItem(LOCAL_POSTS_KEY(userId), JSON.stringify(posts.value))
   } catch (err) {
@@ -230,6 +253,32 @@ async function loadPosts() {
     const raw = localStorage.getItem(LOCAL_POSTS_KEY(userId))
     posts.value = raw ? JSON.parse(raw) : []
   }
+}
+
+async function hydratePostCovers(list) {
+  const targets = list.filter(post => (!post.images || post.images.length === 0) && post.id)
+  if (!targets.length) return
+  await Promise.all(
+    targets.map(async (post) => {
+      try {
+        const detail = await getPost(post.id)
+        const data = detail?.data ? detail.data : detail
+        const normalized = normalizeImages(
+          data?.images ||
+          data?.postImages ||
+          data?.imageList ||
+          data?.postImageList ||
+          data?.post_images ||
+          []
+        )
+        if (normalized.length) {
+          post.images = normalized
+        }
+      } catch (error) {
+        console.warn(`加载帖子(${post.id})封面失败`, error)
+      }
+    })
+  )
 }
 
 const managementTab = ref('all') // all / published / review / rejected / drafts
@@ -305,6 +354,11 @@ function normalizeTagRecord(item) {
   return { id: parsedId, name }
 }
 
+function serializeImagesForPayload() {
+  // 仍以数组顺序代表 image_order，后端可按索引保存
+  return images.value.map((img) => img.data || '')
+}
+
 async function loadTags() {
   tagsLoading.value = true
   tagsError.value = ''
@@ -360,7 +414,7 @@ async function publish() {
     topic: topic.value.trim(),
     content: content.value.trim(),
     // send data URLs (或可被后端解析的字符串数组)
-    images: images.value.map(i => i.data || ''),
+    images: serializeImagesForPayload(),
     tags: selectedTagIds.value.slice(),
     visibility: visibility.value
   }
@@ -375,7 +429,7 @@ async function publish() {
       topic: payload.topic,
       content: payload.content,
       tags: payload.tags,
-      images: payload.images.map(d => ({ data: d })),
+      images: payload.images.map((data, order) => ({ data, order })),
       status: payload.visibility === 'draft' ? 'draft' : 'review'
     }
     // 如果后端保存成功，优先从后端刷新；否则使用本地回退对象并缓存
@@ -417,7 +471,7 @@ async function saveDraft() {
     userId,
     topic: topic.value.trim(),
     content: content.value.trim(),
-    images: images.value.map(i => i.data || ''),
+    images: serializeImagesForPayload(),
     tags: selectedTagIds.value.slice(),
     visibility: 'draft'
   }
@@ -425,7 +479,15 @@ async function saveDraft() {
   message.value = 'Saving draft...'
   try {
     const res = await createPost(payload)
-    const draftPost = res && res.id ? res : { id: Math.max(0, ...posts.value.map(p => p.id)) + 1, title: payload.topic, topic: payload.topic, content: payload.content, tags: payload.tags, images: payload.images.map(d => ({ data: d })), status: 'draft' }
+    const draftPost = res && res.id ? res : {
+      id: Math.max(0, ...posts.value.map(p => p.id)) + 1,
+      title: payload.topic,
+      topic: payload.topic,
+      content: payload.content,
+      tags: payload.tags,
+      images: payload.images.map((data, order) => ({ data, order })),
+      status: 'draft'
+    }
     // 尝试刷新后端数据
     try {
       if (res && res.id) {
