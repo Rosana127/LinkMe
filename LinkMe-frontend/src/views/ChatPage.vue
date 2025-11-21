@@ -151,8 +151,8 @@
           >
             <div class="flex items-end space-x-2" v-if="!message.isFromUser">
               <img 
-                :src="selectedChat?.avatar" 
-                :alt="selectedChat?.name" 
+                :src="message.senderAvatar || selectedChat?.avatar" 
+                :alt="message.senderNickname || selectedChat?.name" 
                 class="w-8 h-8 rounded-full"
               >
               <div class="chat-bubble bg-gray-700 max-w-md">
@@ -226,312 +226,202 @@
 
 <script setup>
 import { ref, computed, onMounted, nextTick, watch } from 'vue'
+import { useAuthStore } from '@/stores/auth'
+import * as chatApi from '@/api/chat'
 
+const authStore = useAuthStore()
 const searchQuery = ref('')
-const selectedChatId = ref(1)
+const selectedChatId = ref(null)
 const newMessage = ref('')
 const activeTab = ref('messages') // 'messages' 或 'notifications'
-// 为消息容器添加引用
 const messagesContainer = ref(null)
 
-// 聊天数据
-const chats = ref([
-  {
-    id: 1,
-    name: '李思雨',
-    avatar: 'https://modao.cc/ai/uploads/ai_pics/32/327752/aigp_1758963757.jpeg',
-    isOnline: true,
-    lastMessage: '周末有空一起去喝咖啡吗？',
-    lastMessageTime: '刚刚',
-    unreadCount: 1,
-    messages: [
-      {
-        id: 1,
-        content: '这周末有空吗？我知道一个新开的展览馆',
-        time: '11:26',
-        isFromUser: false
-      },
-      {
-        id: 2,
-        content: '听起来不错！我对艺术展览很感兴趣',
-        time: '已读 11:30',
-        isFromUser: true
-      },
-      {
-        id: 3,
-        content: '展览主题是现代艺术，周六下午2点开始，我们可以一起喝咖啡然后去看看',
-        time: '11:31',
-        isFromUser: false,
-        isAI: true,
-        aiSuggestion: '太好了！我周六下午有空，我们可以先在附近的咖啡馆见面'
-      },
-      {
-        id: 4,
-        content: '太好了！我周六下午有空，我们可以先在附近的咖啡馆见面',
-        time: '已读 11:32',
-        isFromUser: true
-      },
-      {
-        id: 5,
-        content: '完美！那我们周六下午1:30在市中心的"星辰咖啡"见面，然后一起去展览馆？',
-        time: '11:33',
-        isFromUser: false
-      },
-      {
-        id: 6,
-        content: '没问题，我会准时到达！你需要我带什么吗？',
-        time: '已读 11:34',
-        isFromUser: true
-      },
-      {
-        id: 7,
-        content: '不用带什么，我们就是去看看展览，聊聊天。期待见到你！😊',
-        time: '11:35',
-        isFromUser: false
-      },
-      {
-        id: 8,
-        content: '我也很期待！周六见！',
-        time: '已读 11:36',
-        isFromUser: true
-      },
-      {
-        id: 9,
-        content: '对了，周末有空一起去喝咖啡吗？',
-        time: '刚刚',
-        isFromUser: false
-      }
-    ]
-  },
-  {
-    id: 2,
-    name: '王伟',
-    avatar: 'https://modao.cc/ai/uploads/ai_pics/32/327749/aigp_1758963751.jpeg',
-    isOnline: true,
-    lastMessage: '下周一的会议准备好了吗？',
-    lastMessageTime: '10分钟前',
-    unreadCount: 0,
-    messages: [
-      {
-        id: 1,
-        content: '嘿，王伟，下周一的会议准备好了吗？',
-        time: '10:30',
-        isFromUser: true
-      },
-      {
-        id: 2,
-        content: '是的，我已经准备好了PPT和会议材料',
-        time: '10:32',
-        isFromUser: false
-      },
-      {
-        id: 3,
-        content: '太好了！那我们明天再确认一下细节吧',
-        time: '10:33',
-        isFromUser: true
-      },
-      {
-        id: 4,
-        content: '好的，没问题',
-        time: '10:34',
-        isFromUser: false
-      },
-      {
-        id: 5,
-        content: '下周一的会议准备好了吗？',
-        time: '10分钟前',
-        isFromUser: false
-      }
-    ]
-  },
-  {
-    id: 3,
-    name: '赵雪',
-    avatar: 'https://modao.cc/ai/uploads/ai_pics/32/327754/aigp_1758963760.jpeg',
-    isOnline: false,
-    lastMessage: '谢谢你的帮忙！',
-    lastMessageTime: '昨天',
-    unreadCount: 0,
-    messages: [
-      {
-        id: 1,
-        content: '嗨，赵雪，你上次提到的那本书叫什么名字？',
-        time: '昨天 15:20',
-        isFromUser: true
-      },
-      {
-        id: 2,
-        content: '哦，那本书叫《设计心理学》，非常推荐你看看！',
-        time: '昨天 15:25',
-        isFromUser: false
-      },
-      {
-        id: 3,
-        content: '好的，我会去看看的。谢谢你的推荐！',
-        time: '昨天 15:30',
-        isFromUser: true
-      },
-      {
-        id: 4,
-        content: '不客气，希望你会喜欢！',
-        time: '昨天 15:32',
-        isFromUser: false
-      },
-      {
-        id: 5,
-        content: '谢谢你的帮忙！',
-        time: '昨天 15:35',
-        isFromUser: true
-      }
-    ]
-  }
-])
+// 会话列表（从后端拉取）
+const chats = ref([])
 
-// 通知数据
+// 保留一个本地通知示例（可按需替换为后端接口）
 const notifications = ref([
-  {
-    id: 1,
-    user: {
-      name: '李思雨',
-      avatar: 'https://modao.cc/ai/uploads/ai_pics/32/327752/aigp_1758963757.jpeg'
-    },
-    action: '评论了你的动态',
-    time: '1小时前',
-    read: false
-  },
-  {
-    id: 2,
-    user: {
-      name: '王伟',
-      avatar: 'https://modao.cc/ai/uploads/ai_pics/32/327749/aigp_1758963751.jpeg'
-    },
-    action: '点赞了你的照片',
-    time: '2小时前',
-    read: false
-  },
-  {
-    id: 3,
-    user: {
-      name: '赵雪',
-      avatar: 'https://modao.cc/ai/uploads/ai_pics/32/327754/aigp_1758963760.jpeg'
-    },
-    action: '关注了你',
-    time: '昨天',
-    read: true
-  }
+  { id: 1, user: { name: '李思雨', avatar: 'https://modao.cc/ai/uploads/ai_pics/32/327752/aigp_1758963757.jpeg' }, action: '评论了你的动态', time: '1小时前', read: false },
+  { id: 2, user: { name: '王伟', avatar: 'https://modao.cc/ai/uploads/ai_pics/32/327749/aigp_1758963751.jpeg' }, action: '点赞了你的照片', time: '2小时前', read: false },
+  { id: 3, user: { name: '赵雪', avatar: 'https://modao.cc/ai/uploads/ai_pics/32/327754/aigp_1758963760.jpeg' }, action: '关注了你', time: '昨天', read: true }
 ])
 
-// 未读通知数量
-const unreadNotificationsCount = computed(() => {
-  return notifications.value.filter(notification => !notification.read).length
-})
+const unreadNotificationsCount = computed(() => notifications.value.filter(n => !n.read).length)
 
-// 过滤聊天列表
 const filteredChats = computed(() => {
   if (!searchQuery.value) return chats.value
-  const query = searchQuery.value.toLowerCase()
-  return chats.value.filter(chat => 
-    chat.name.toLowerCase().includes(query) || 
-    chat.lastMessage.toLowerCase().includes(query)
-  )
+  const q = searchQuery.value.toLowerCase()
+  return chats.value.filter(c => (c.name || '').toLowerCase().includes(q) || (c.lastMessage || '').toLowerCase().includes(q))
 })
 
-// 过滤通知列表
 const filteredNotifications = computed(() => {
   if (!searchQuery.value) return notifications.value
-  const query = searchQuery.value.toLowerCase()
-  return notifications.value.filter(notification => 
-    notification.user.name.toLowerCase().includes(query) || 
-    notification.action.toLowerCase().includes(query)
-  )
+  const q = searchQuery.value.toLowerCase()
+  return notifications.value.filter(n => (n.user?.name || '').toLowerCase().includes(q) || (n.action || '').toLowerCase().includes(q))
 })
 
-// 当前选中的聊天
-const selectedChat = computed(() => {
-  return chats.value.find(chat => chat.id === selectedChatId.value)
-})
+const selectedChat = computed(() => chats.value.find(c => c.id === selectedChatId.value) || null)
+
+function formatTime(ts) {
+  if (!ts) return ''
+  try {
+    const d = new Date(ts)
+    return d.toLocaleString()
+  } catch (e) {
+    return ts
+  }
+}
 
 // AI 建议
 const aiSuggestion = computed(() => {
-  // 这里可以根据上下文生成AI建议
-  return '我很乐意！周六见。'
+  // 简单示例：基于最近一条消息的内容做固定建议，也可以替换为调用 AI 服务
+  const last = selectedChat.value?.messages?.slice(-1)[0]
+  if (!last) return '我很乐意！周六见。'
+  // 如果对方问了问题，建议肯定/约定类回复
+  if (/(吗|吗\?|\?|？|怎么样|怎样)/.test(last.content)) return '好的，我同意，我们周末见。'
+  return '听起来不错！我也很期待。'
 })
 
-// AI 提示
 const aiTip = computed(() => {
-  // 这里可以根据聊天上下文生成AI提示
   return '你们的对话进展很顺利！注意保持自然的交流节奏。'
 })
 
-// 选择聊天
-const selectChat = (chatId) => {
-  selectedChatId.value = chatId
-  // 选择聊天后滚动到底部
-  nextTick(() => {
-    scrollToBottom()
-  })
+// 将后端会话结构映射为前端展示结构
+function mapConversationToChat(conv) {
+  
+  // Support backend ConversationResponse shape (conversationId, otherUserId, otherUserNickname, otherUserAvatar)
+  const id = conv.conversationId ?? conv.id ?? conv.conversation_id
+  const otherId = conv.otherUserId ?? (conv.other && (conv.other.id ?? conv.other.userId)) ?? null
+  const name = conv.otherUserNickname ?? conv.other?.nickname ?? conv.name ?? `对话 ${id}`
+  const avatar = conv.otherUserAvatar ?? conv.other?.avatarUrl ?? conv.other?.avatar ?? ''
+  const lastMessage = conv.lastMessage ?? (conv.lastMessageObj && (conv.lastMessageObj.content || conv.lastMessageObj.text)) ?? ''
+  const lastMessageTime = conv.lastMessageTime ?? conv.last_message_time ?? conv.updatedAt ?? conv.updated_at
+  return {
+    id,
+    name,
+    avatar,
+    isOnline: !!conv.isOnline,
+    lastMessage,
+    lastMessageTime,
+    unreadCount: conv.unreadCount ?? conv.unread_count ?? 0,
+    messages: [],
+    otherId
+  }
 }
 
-// 标记通知为已读
+async function loadConversations() {
+  try {
+    const res = await chatApi.getConversations()
+    let arr
+    if (Array.isArray(res)) arr = res
+    else if (res && Array.isArray(res.data)) arr = res.data
+    else arr = []
+    chats.value = arr.map(mapConversationToChat)
+    // 补全会话的参与者信息（如果后端 conversations 列表未包含），逐条请求详情并更新
+    for (let i = 0; i < chats.value.length; i++) {
+      const c = chats.value[i]
+      if ((!c.name || c.name.startsWith('对话')) && c.id) {
+        try {
+          const detail = await chatApi.getConversation(c.id)
+          const data = detail && detail.id ? detail : (detail?.data ? detail.data : detail)
+          const participants = data.participants || data.users || []
+          const other = (Array.isArray(participants) && participants.find(p => p.id !== authStore.userId)) || participants[0] || {}
+          c.name = other.nickname || other.username || data.name || c.name
+          c.avatar = other.avatarUrl || other.avatar || c.avatar
+          c.otherId = other.id || other.userId || other.user_id || c.otherId
+        } catch (err) {
+          // ignore per-item failure
+        }
+      }
+    }
+    if (!selectedChatId.value && chats.value.length) {
+      selectedChatId.value = chats.value[0].id
+      await loadMessages(selectedChatId.value)
+    }
+  } catch (e) {
+    console.error('加载会话失败', e)
+    chats.value = []
+  }
+}
+
+async function loadMessages(conversationId) {
+  if (!conversationId) return
+  try {
+    const res = await chatApi.getMessages(conversationId)
+    let arr
+    if (Array.isArray(res)) arr = res
+    else if (res && Array.isArray(res.data)) arr = res.data
+    else arr = []
+    // map to message objects used in模板
+    const msgs = arr.map(m => ({
+      id: m.messageId ?? m.message_id ?? m.id,
+      content: m.content ?? m.text ?? m.body,
+      time: formatTime(m.createdAt ?? m.created_at ?? m.time),
+      isFromUser: (m.senderId ?? m.sender_id ?? m.from_user_id ?? m.userId) === authStore.userId,
+      senderNickname: m.senderNickname ?? m.sender_nickname,
+      senderAvatar: m.senderAvatar ?? m.sender_avatar
+    }))
+    const idx = chats.value.findIndex(c => c.id === conversationId)
+    if (idx >= 0) {
+      chats.value[idx].messages = msgs
+      chats.value[idx].lastMessage = msgs.length ? msgs[msgs.length-1].content : chats.value[idx].lastMessage
+      chats.value[idx].lastMessageTime = msgs.length ? msgs[msgs.length-1].time : chats.value[idx].lastMessageTime
+    } else {
+      // if conversation not present, push a minimal entry
+      chats.value.push({ id: conversationId, name: `对话 ${conversationId}`, avatar: '', isOnline: false, lastMessage: '', lastMessageTime: '', unreadCount: 0, messages: msgs })
+    }
+    nextTick(() => scrollToBottom())
+  } catch (e) {
+    console.error('加载消息失败', e)
+  }
+}
+
+const selectChat = async (chatId) => {
+  selectedChatId.value = chatId
+  await loadMessages(chatId)
+}
+
 const markAsRead = (notificationId) => {
   const notification = notifications.value.find(n => n.id === notificationId)
-  if (notification) {
-    notification.read = true
-  }
+  if (notification) notification.read = true
 }
 
-// 发送消息
-const sendMessage = () => {
+const sendMessage = async () => {
   if (!newMessage.value.trim() || !selectedChat.value) return
-  
-  const newMsg = {
-    id: Date.now(),
-    content: newMessage.value.trim(),
-    time: '已读 ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-    isFromUser: true
+  const content = newMessage.value.trim()
+  const senderId = authStore.userId
+  const receiverId = selectedChat.value.otherId // 对方用户ID
+  const conversationId = selectedChat.value.id
+  const payload = {
+    senderId, // 当前用户ID
+    receiverId, // 对方用户ID
+    contentType: 'text', // 仅支持文本消息
+    content
   }
-  
-  // 添加新消息到当前聊天
-  const chatIndex = chats.value.findIndex(c => c.id === selectedChatId.value)
-  chats.value[chatIndex].messages.push(newMsg)
-  chats.value[chatIndex].lastMessage = newMessage.value
-  chats.value[chatIndex].lastMessageTime = '刚刚'
-  
-  // 清空输入框
-  newMessage.value = ''
-  
-  // 滚动到底部
-  nextTick(() => {
-    scrollToBottom()
-  })
+  try {
+    // 发送消息到后端
+    await chatApi.postMessage(conversationId, payload)
+    // 清空输入框
+    newMessage.value = ''
+    // 重新拉取消息列表，刷新 UI
+    await loadMessages(conversationId)
+    nextTick(() => scrollToBottom())
+  } catch (e) {
+    // 错误处理，提示用户
+    window.$message?.error?.(e.message || '发送消息失败')
+    console.error('发送消息失败', e)
+  }
 }
 
-// 使用AI建议
-const useAISuggestion = () => {
-  newMessage.value = aiSuggestion.value
-}
+const useAISuggestion = () => { newMessage.value = '我很乐意！周六见。' }
 
-// 滚动到底部函数
 const scrollToBottom = () => {
-  // 确保消息容器已渲染
-  if (messagesContainer.value) {
-    messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight
-  }
+  if (messagesContainer.value) messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight
 }
 
-// 监听selectedChatId变化，切换聊天时滚动到底部
-watch(selectedChatId, () => {
-  nextTick(() => {
-    scrollToBottom()
-  })
-})
+watch(selectedChatId, () => { nextTick(() => scrollToBottom()) })
 
-// 组件挂载后滚动到底部
-onMounted(() => {
-  nextTick(() => {
-    scrollToBottom()
-  })
-})
+onMounted(() => { loadConversations() })
 </script>
 
 <style scoped>
