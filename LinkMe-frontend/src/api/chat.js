@@ -28,13 +28,36 @@ export function markRead(conversationId) {
     return request({ url: `/conversations/${conversationId}/read`, method: 'put' })
 }
 
+
+// 通知相关API
+export function getNotifications(params = {}) {
+    return request({ url: '/notifications', method: 'get', params })
+}
+export function getUnreadNotificationCount() {
+    return request({ url: '/notifications/unread-count', method: 'get' })
+}
+export function markNotificationRead(notificationId) {
+    return request({ url: `/notifications/${notificationId}/read`, method: 'put' })
+}
+export function markAllNotificationsRead() {
+    return request({ url: '/notifications/read-all', method: 'put' })
+}
+export function deleteNotification(notificationId) {
+    return request({ url: `/notifications/${notificationId}`, method: 'delete' })
+}
+
 const chatApi = {
     getConversations,
     getConversation,
     getMessages,
     postMessage,
     createConversation,
-    markRead
+    markRead,
+    getNotifications,
+    getUnreadNotificationCount,
+    markNotificationRead,
+    markAllNotificationsRead,
+    deleteNotification
 }
 
 export default chatApi

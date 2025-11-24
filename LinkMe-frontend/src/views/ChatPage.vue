@@ -78,29 +78,24 @@
             </div>
           </div>
           
-          <!-- 活动通知列表 -->
+          <!-- 活动通知列表（只用后端数据，字段映射一致） -->
           <div v-else class="notification-list p-2 space-y-1">
+            <div v-if="filteredNotifications.length === 0" class="empty-notification">暂无通知</div>
             <div 
-              v-for="notification in filteredNotifications" 
-              :key="notification.id"
-              class="flex items-start py-3 px-3 rounded-lg hover:bg-gray-800 cursor-pointer transition-colors"
-              :class="{ 'bg-gray-800/50': !notification.read }"
-              @click="markAsRead(notification.id)"
+              v-for="n in filteredNotifications" 
+              :key="n.notificationId"
+              class="flex flex-col py-3 px-3 rounded-lg hover:bg-gray-800 cursor-pointer transition-colors notification-item"
+              :class="{ unread: !n.isRead }"
             >
-              <div class="relative">
-                <img 
-                  :src="notification.user.avatar" 
-                  :alt="notification.user.name" 
-                  class="w-10 h-10 rounded-full"
-                >
-                <span v-if="!notification.read" class="absolute top-0 right-0 w-2 h-2 bg-purple-500 rounded-full"></span>
+              <div class="flex items-center mb-1">
+                <span class="notification-title font-bold text-white mr-2">{{ n.title }}</span>
+                <span v-if="!n.isRead" class="w-2 h-2 bg-purple-500 rounded-full inline-block"></span>
               </div>
-              <div class="ml-3 flex-1">
-                <p class="text-sm text-white">
-                  <span class="font-medium">{{ notification.user.name }}</span>
-                  {{ notification.action }}
-                </p>
-                <span class="text-xs text-gray-400 block mt-1">{{ notification.time }}</span>
+              <div class="notification-content text-sm text-gray-200 mb-1">{{ n.content }}</div>
+              <div class="notification-time text-xs text-gray-400 mb-1">{{ formatTime(n.createdAt) }}</div>
+              <div class="flex gap-2 mt-1">
+                <button v-if="!n.isRead" @click="markAsRead(n.notificationId)" class="px-2 py-1 text-xs bg-purple-600 text-white rounded">标记为已读</button>
+                <button @click="deleteNotification(n.notificationId)" class="px-2 py-1 text-xs bg-gray-700 text-white rounded">删除</button>
               </div>
             </div>
           </div>
@@ -239,14 +234,56 @@ const messagesContainer = ref(null)
 // 会话列表（从后端拉取）
 const chats = ref([])
 
-// 保留一个本地通知示例（可按需替换为后端接口）
-const notifications = ref([
-  { id: 1, user: { name: '李思雨', avatar: 'https://modao.cc/ai/uploads/ai_pics/32/327752/aigp_1758963757.jpeg' }, action: '评论了你的动态', time: '1小时前', read: false },
-  { id: 2, user: { name: '王伟', avatar: 'https://modao.cc/ai/uploads/ai_pics/32/327749/aigp_1758963751.jpeg' }, action: '点赞了你的照片', time: '2小时前', read: false },
-  { id: 3, user: { name: '赵雪', avatar: 'https://modao.cc/ai/uploads/ai_pics/32/327754/aigp_1758963760.jpeg' }, action: '关注了你', time: '昨天', read: true }
-])
 
-const unreadNotificationsCount = computed(() => notifications.value.filter(n => !n.read).length)
+// 通知列表（从后端拉取）
+const notifications = ref([])
+
+// 拉取通知列表
+async function loadNotifications() {
+  try {
+    const res = await chatApi.getNotifications()
+      console.log('通知API返回', res)
+    notifications.value = Array.isArray(res) ? res : (res?.data || [])
+  } catch (e) {
+    notifications.value = []
+    console.error('加载通知失败', e)
+  }
+}
+
+// 拉取未读通知数量
+const unreadNotificationsCount = computed(() => notifications.value.filter(n => !n.isRead).length)
+
+// 标记单条通知为已读
+async function markAsRead(notificationId) {
+  try {
+    await chatApi.markNotificationRead(notificationId)
+    await loadNotifications()
+  } catch (e) {
+    console.error('标记通知为已读失败', e)
+  }
+}
+
+// 标记所有通知为已读
+async function markAllAsRead() {
+  try {
+    await chatApi.markAllNotificationsRead()
+    await loadNotifications()
+  } catch (e) {
+    console.error('全部标记为已读失败', e)
+  }
+}
+
+// 删除通知
+async function deleteNotification(notificationId) {
+  try {
+    await chatApi.deleteNotification(notificationId)
+    await loadNotifications()
+  } catch (e) {
+    console.error('删除通知失败', e)
+  }
+}
+
+// const unreadNotificationsCount = computed(() => notifications.value.filter(n => !n.read).length)
 
 const filteredChats = computed(() => {
   if (!searchQuery.value) return chats.value
@@ -257,7 +294,10 @@ const filteredChats = computed(() => {
 const filteredNotifications = computed(() => {
   if (!searchQuery.value) return notifications.value
   const q = searchQuery.value.toLowerCase()
-  return notifications.value.filter(n => (n.user?.name || '').toLowerCase().includes(q) || (n.action || '').toLowerCase().includes(q))
+  return notifications.value.filter(n =>
+    (n.title || '').toLowerCase().includes(q) ||
+    (n.content || '').toLowerCase().includes(q)
+  )
 })
 
 const selectedChat = computed(() => chats.value.find(c => c.id === selectedChatId.value) || null)
@@ -381,10 +421,6 @@ const selectChat = async (chatId) => {
   await loadMessages(chatId)
 }
 
-const markAsRead = (notificationId) => {
-  const notification = notifications.value.find(n => n.id === notificationId)
-  if (notification) notification.read = true
-}
 
 const sendMessage = async () => {
   if (!newMessage.value.trim() || !selectedChat.value) return
@@ -421,7 +457,10 @@ const scrollToBottom = () => {
 
 watch(selectedChatId, () => { nextTick(() => scrollToBottom()) })
 
-onMounted(() => { loadConversations() })
+onMounted(() => {
+  loadConversations()
+  loadNotifications()
+})
 </script>
 
 <style scoped>
@@ -433,4 +472,30 @@ onMounted(() => { loadConversations() })
 }
 
 /* 其他样式保持不变 */
+.notification-list {
+  margin: 16px 0;
+}
+.notification-item {
+  border-bottom: 1px solid #222;
+  padding: 12px 0;
+}
+.notification-item.unread {
+  background: #2d2250;
+}
+.notification-title {
+  font-weight: bold;
+}
+.notification-content {
+  margin-bottom: 4px;
+}
+.notification-time {
+  font-size: 12px;
+  color: #888;
+  margin-bottom: 4px;
+}
+.empty-notification {
+  color: #aaa;
+  text-align: center;
+  margin: 24px 0;
+}
 </style>
