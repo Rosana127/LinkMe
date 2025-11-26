@@ -4,7 +4,6 @@ import HomePage from '../views/HomePage.vue'
 import DiscoverPage from '../views/DiscoverPage.vue'
 import MatchPage from '../views/MatchPage.vue'
 import ChatPage from '../views/ChatPage.vue'
-import ProfilePage from '../views/ProfilePage.vue'
 import SettingsPage from '../views/SettingsPage.vue'
 import CreatePost from '../views/CreatePost.vue'
 import LoginPage from '../views/LoginPage.vue'
@@ -54,9 +53,7 @@ const routes = [
   },
   {
     path: '/profile',
-    name: 'profile',
-    component: ProfilePage,
-    meta: { requiresAuth: true }
+    redirect: '/home'
   },
   {
     path: '/settings',

@@ -1,10 +1,52 @@
 <template>
   <div class="explore-page">
     <h1 class="page-title">Explore</h1>
+    
     <!-- toast 提示 -->
     <div v-if="showToast" class="toast">{{ toastText }}</div>
     
-    <!-- 分类和搜索区域 - 修改为固定在顶部，背景为白色，不覆盖侧边栏 -->
+    <!-- 收藏夹选择弹窗 -->
+    <div v-if="showFolderModal" class="modal-overlay" @click="closeFolderModal">
+      <div class="modal-content" @click.stop>
+        <h3 class="modal-title">选择收藏夹</h3>
+        <div class="folder-list">
+          <div 
+            v-for="folder in favoriteFolders" 
+            :key="folder.folderId" 
+            class="folder-item"
+            @click="saveToFolder(folder.folderId)"
+          >
+            <span class="iconify" data-icon="mdi:folder-outline"></span>
+            <span>{{ folder.name }}</span>
+          </div>
+          <div class="folder-item create-folder" @click="showCreateFolder = true">
+            <span class="iconify" data-icon="mdi:folder-plus-outline"></span>
+            <span>创建新收藏夹</span>
+          </div>
+        </div>
+        <button class="modal-close-btn" @click="closeFolderModal">取消</button>
+      </div>
+    </div>
+    
+    <!-- 创建收藏夹弹窗 -->
+    <div v-if="showCreateFolder" class="modal-overlay" @click="showCreateFolder = false">
+      <div class="modal-content" @click.stop>
+        <h3 class="modal-title">创建收藏夹</h3>
+        <input 
+          v-model="newFolderName" 
+          type="text" 
+          placeholder="输入收藏夹名称" 
+          class="folder-input"
+          @keyup.enter="createNewFolder"
+        >
+        <div class="modal-actions">
+          <button class="modal-btn cancel" @click="showCreateFolder = false">取消</button>
+          <button class="modal-btn confirm" @click="createNewFolder">创建</button>
+        </div>
+      </div>
+    </div>
+    
+    <!-- 分类和搜索区域 -->
     <div class="category-search-container fixed-header">
       <div class="categories">
         <button 
@@ -34,11 +76,11 @@
       </div>
     </div>
     
-    <!-- 动态流 - 保持两列布局，确保有足够的顶部内边距避免被固定栏遮挡 -->
+    <!-- 动态流 -->
     <div class="posts-grid">
-      <router-link v-for="post in filteredPosts" :key="post.id" :to="{ name: 'post', params: { id: post.id } }" class="post-card post-link">
+      <div v-for="post in filteredPosts" :key="post.id" class="post-card">
         <!-- 用户信息 -->
-        <div class="post-header">
+        <div class="post-header" @click="openPost(post.id)">
           <div class="user-info">
             <img 
               :src="post.author.avatar" 
@@ -57,20 +99,13 @@
         </div>
         
         <!-- 帖子内容 -->
-        <div class="post-content">
+        <div class="post-content" @click="openPost(post.id)">
           <p class="post-caption">{{ post.caption }}</p>
-              <div class="hashtags">
-                {{ post.hashtags }}
-                <!-- 在标签后显示收藏数（bookmark） -->
-                <span class="fav-inline" @click.stop="toggleFavorite(post)">
-                  <span class="iconify" data-icon="mdi:bookmark-outline" data-inline="false"></span>
-                  <span class="fav-count">{{ post.favorites || 0 }}</span>
-                </span>
-              </div>
+          <div class="hashtags">{{ post.hashtags }}</div>
         </div>
         
         <!-- 图片 -->
-        <div class="post-image" v-if="post.image">
+        <div class="post-image" v-if="post.image" @click="openPost(post.id)">
           <img 
             :src="post.image" 
             :alt="post.caption" 
@@ -78,22 +113,22 @@
           >
         </div>
         
-        <!-- 互动按钮（阻止导航） -->
+        <!-- 互动按钮 -->
         <div class="post-actions">
-          <button :class="['action-btn', { liked: post.liked }]" @click.stop="toggleLike(post)">
+          <button :class="['action-btn', { liked: post.liked }]" @click.prevent.stop="toggleLike(post)">
             <span class="iconify" :data-icon="post.liked ? 'mdi:heart' : 'mdi:heart-outline'" data-inline="false"></span>
             <span>{{ post.likes }}</span>
           </button>
-          <button :class="['action-btn', { favorited: post.favorited }]" @click.stop="toggleFavorite(post)">
+          <button :class="['action-btn', { favorited: post.favorited }]" @click.prevent.stop="openFolderModal(post)">
             <span class="iconify" :data-icon="post.favorited ? 'mdi:bookmark' : 'mdi:bookmark-outline'" data-inline="false"></span>
             <span>{{ post.favorites || 0 }}</span>
           </button>
-          <button class="action-btn" @click.stop="openPost(post.id)">
+          <button class="action-btn" @click.prevent.stop="openPost(post.id)">
             <span class="iconify" data-icon="mdi:comment-outline" data-inline="false"></span>
             <span>{{ post.comments || 0 }}</span>
           </button>
         </div>
-      </router-link>
+      </div>
     </div>
   </div>
 </template>
@@ -102,16 +137,17 @@
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
+import { getPosts, likePost, unlikePost } from '@/api/posts'
+import { getFavoriteFolders, createFavoriteFolder, addPostToFavorites } from '@/api/favorites'
 
 const authStore = useAuthStore()
 const isAuthenticated = computed(() => authStore.isAuthenticated)
+const currentUserId = computed(() => authStore.user?.userId)
 
 // 当前激活的分类
 const activeCategory = ref('recommended')
 // 搜索查询
 const searchQuery = ref('')
-
-import { getPosts } from '@/api/posts'
 
 // 全部帖子（从后端拉取）
 const allPosts = ref([])
@@ -120,14 +156,50 @@ const allPosts = ref([])
 const recommendedPosts = ref([])
 const followingPosts = ref([])
 
+// 收藏夹相关
+const showFolderModal = ref(false)
+const showCreateFolder = ref(false)
+const favoriteFolders = ref([])
+const newFolderName = ref('')
+const currentFavoritePost = ref(null)
+
+// 从 localStorage 获取点赞和收藏状态
+function getLocalLikeStatus(postId) {
+  const key = `liked_${currentUserId.value}_${postId}`
+  return localStorage.getItem(key) === 'true'
+}
+
+function setLocalLikeStatus(postId, liked) {
+  const key = `liked_${currentUserId.value}_${postId}`
+  if (liked) {
+    localStorage.setItem(key, 'true')
+  } else {
+    localStorage.removeItem(key)
+  }
+}
+
+function getLocalFavoriteStatus(postId) {
+  const key = `favorited_${currentUserId.value}_${postId}`
+  return localStorage.getItem(key) === 'true'
+}
+
+function setLocalFavoriteStatus(postId, favorited) {
+  const key = `favorited_${currentUserId.value}_${postId}`
+  if (favorited) {
+    localStorage.setItem(key, 'true')
+  } else {
+    localStorage.removeItem(key)
+  }
+}
+
 function mapBackendToView(raw) {
-  // raw: backend post object
-  // 后端现在直接在Post对象中包含用户信息字段（nickname, username, avatarUrl）
   const author = raw.user || raw.author || raw.creator || {}
   const images = Array.isArray(raw.images) ? raw.images : (raw.images ? [raw.images] : [])
   const firstImage = images.length ? (typeof images[0] === 'string' ? images[0] : (images[0].url || images[0].path || images[0].data || null)) : null
+  const postId = raw.postId ?? raw.id ?? raw._id
+  
   return {
-    id: raw.id ?? raw._id ?? raw.postId,
+    id: postId,
     author: {
       avatar: raw.avatarUrl || author.avatar || author.photo || author.image || author.avatarUrl || 'https://via.placeholder.com/80',
       name: raw.nickname || author.nickname || raw.username || author.name || author.username || '匿名',
@@ -138,11 +210,12 @@ function mapBackendToView(raw) {
     caption: raw.topic || raw.title || raw.content || raw.caption || '',
     hashtags: Array.isArray(raw.tags) ? raw.tags.join(' ') : (raw.tags || ''),
     image: firstImage,
-    likes: raw.likes ?? raw.likeCount ?? 0,
-    liked: false,
-    favorites: raw.favorites ?? raw.bookmarks ?? 0,
-    comments: raw.commentsCount ?? raw.comment_count ?? (Array.isArray(raw.comments) ? raw.comments.length : (raw.commentNum ?? 0)),
-    favorited: false
+    // 使用后端返回的真实统计数据
+    likes: raw.likeCount ?? raw.likes ?? 0,
+    liked: isAuthenticated.value ? getLocalLikeStatus(postId) : false,
+    favorites: raw.favoriteCount ?? raw.favorites ?? raw.bookmarks ?? 0,
+    comments: raw.commentCount ?? raw.commentsCount ?? raw.comment_count ?? (Array.isArray(raw.comments) ? raw.comments.length : (raw.commentNum ?? 0)),
+    favorited: isAuthenticated.value ? getLocalFavoriteStatus(postId) : false
   }
 }
 
@@ -151,19 +224,30 @@ async function loadExplore() {
     const res = await getPosts()
     const arr = Array.isArray(res) ? res : (res?.data && Array.isArray(res.data) ? res.data : [])
     allPosts.value = arr.map(mapBackendToView)
-    // simple split: recommended = all, following = those with author.isFollowed true (if backend provides)
     recommendedPosts.value = allPosts.value
     followingPosts.value = allPosts.value.filter(p => p.author && p.author.isFollowed)
   } catch (e) {
     console.error('加载探索帖子失败', e)
-    // 如果是401错误且未登录，这是正常的，不显示错误
-    // 其他错误可能是网络问题或服务器错误
     if (e.message && !e.message.includes('401') && !e.message.includes('未授权')) {
       console.warn('获取帖子列表失败，可能是网络问题或服务器错误')
     }
     allPosts.value = []
     recommendedPosts.value = []
     followingPosts.value = []
+  }
+}
+
+// 加载收藏夹列表
+async function loadFavoriteFolders() {
+  if (!isAuthenticated.value || !currentUserId.value) return
+  
+  try {
+    const res = await getFavoriteFolders(currentUserId.value)
+    const arr = Array.isArray(res) ? res : (res?.data && Array.isArray(res.data) ? res.data : [])
+    favoriteFolders.value = arr
+  } catch (e) {
+    console.error('加载收藏夹失败', e)
+    favoriteFolders.value = []
   }
 }
 
@@ -175,15 +259,13 @@ function openPost(id) {
 // 处理关注按钮点击
 function handleFollowingClick() {
   if (!isAuthenticated.value) {
-    // 未登录时跳转到登录页
     router.push('/login')
   } else {
-    // 已登录时切换到关注
     activeCategory.value = 'following'
   }
 }
 
-// 监听登录状态变化，如果未登录则切换到推荐
+// 监听登录状态变化
 watch(isAuthenticated, (newVal) => {
   if (!newVal) {
     activeCategory.value = 'recommended'
@@ -192,7 +274,6 @@ watch(isAuthenticated, (newVal) => {
 
 // 根据当前分类和搜索词过滤帖子
 const filteredPosts = computed(() => {
-  // 如果未登录，只显示推荐内容
   const category = (!isAuthenticated.value || activeCategory.value === 'recommended') ? 'recommended' : 'following'
   let posts = category === 'recommended' ? recommendedPosts.value : followingPosts.value
   
@@ -210,42 +291,163 @@ const filteredPosts = computed(() => {
 
 onMounted(() => {
   loadExplore()
+  if (isAuthenticated.value) {
+    loadFavoriteFolders()
+  }
 })
 
-// toast for 收藏成功
+// toast
 const showToast = ref(false)
 const toastText = ref('')
-function toggleFavorite(post) {
-  // ensure fields exist
-  if (post.favorites === undefined) post.favorites = 0
-  if (post.favorited === undefined) post.favorited = false
 
-  if (post.favorited) {
-    // 取消收藏
-    post.favorites = Math.max(0, post.favorites - 1)
-    post.favorited = false
-    toastText.value = '已取消收藏'
-  } else {
-    // 收藏
-    post.favorites = (post.favorites || 0) + 1
-    post.favorited = true
-    toastText.value = '收藏成功'
-  }
-
+function showToastMessage(message) {
+  toastText.value = message
   showToast.value = true
-  setTimeout(() => { showToast.value = false }, 1200)
+  setTimeout(() => { showToast.value = false }, 1500)
 }
 
-function toggleLike(post) {
+// 点赞功能
+async function toggleLike(post) {
+  if (!isAuthenticated.value) {
+    showToastMessage('请先登录')
+    setTimeout(() => router.push('/login'), 800)
+    return
+  }
+
   if (post.likes === undefined) post.likes = 0
   if (post.liked === undefined) post.liked = false
 
-  if (post.liked) {
-    post.likes = Math.max(0, post.likes - 1)
-    post.liked = false
-  } else {
-    post.likes = post.likes + 1
-    post.liked = true
+  const wasLiked = post.liked
+  const wasLikeCount = post.likes
+
+  try {
+    if (post.liked) {
+      // 乐观更新：先更新UI
+      post.liked = false
+      post.likes = Math.max(0, post.likes - 1)
+      
+      // 取消点赞
+      await unlikePost(post.id, currentUserId.value)
+      setLocalLikeStatus(post.id, false)
+      showToastMessage('已取消点赞')
+    } else {
+      // 乐观更新：先更新UI
+      post.liked = true
+      post.likes = (post.likes || 0) + 1
+      
+      // 点赞
+      await likePost(post.id, currentUserId.value)
+      setLocalLikeStatus(post.id, true)
+      showToastMessage('点赞成功')
+    }
+    
+    // 成功后重新加载该帖子的数据以同步真实点赞数
+    await refreshPostData(post.id)
+  } catch (error) {
+    console.error('点赞操作失败', error)
+    // 回滚状态
+    post.liked = wasLiked
+    post.likes = wasLikeCount
+    showToastMessage('操作失败，请重试')
+  }
+}
+
+// 刷新单个帖子的数据
+async function refreshPostData(postId) {
+  try {
+    const res = await getPosts()
+    const arr = Array.isArray(res) ? res : (res?.data && Array.isArray(res.data) ? res.data : [])
+    const updatedPost = arr.find(p => (p.postId ?? p.id ?? p._id) === postId)
+    
+    if (updatedPost) {
+      // 更新 allPosts 中的数据
+      const index = allPosts.value.findIndex(p => p.id === postId)
+      if (index !== -1) {
+        const newPostData = mapBackendToView(updatedPost)
+        allPosts.value[index] = newPostData
+        
+        // 同步更新 recommendedPosts 和 followingPosts
+        const recIndex = recommendedPosts.value.findIndex(p => p.id === postId)
+        if (recIndex !== -1) {
+          recommendedPosts.value[recIndex] = newPostData
+        }
+        
+        const folIndex = followingPosts.value.findIndex(p => p.id === postId)
+        if (folIndex !== -1) {
+          followingPosts.value[folIndex] = newPostData
+        }
+      }
+    }
+  } catch (error) {
+    console.error('刷新帖子数据失败', error)
+  }
+}
+
+// 打开收藏夹选择弹窗
+async function openFolderModal(post) {
+  if (!isAuthenticated.value) {
+    showToastMessage('请先登录')
+    setTimeout(() => router.push('/login'), 800)
+    return
+  }
+
+  currentFavoritePost.value = post
+  await loadFavoriteFolders()
+  showFolderModal.value = true
+}
+
+// 关闭收藏夹弹窗
+function closeFolderModal() {
+  showFolderModal.value = false
+  currentFavoritePost.value = null
+}
+
+// 保存到收藏夹
+async function saveToFolder(folderId) {
+  if (!currentFavoritePost.value) return
+  
+  const postId = currentFavoritePost.value.id
+
+  try {
+    await addPostToFavorites(currentUserId.value, postId, folderId)
+    currentFavoritePost.value.favorites = (currentFavoritePost.value.favorites || 0) + 1
+    currentFavoritePost.value.favorited = true
+    setLocalFavoriteStatus(postId, true)
+    showToastMessage('收藏成功')
+    closeFolderModal()
+    
+    // 重新加载该帖子的数据以同步真实收藏数
+    await refreshPostData(postId)
+  } catch (error) {
+    console.error('收藏失败', error)
+    showToastMessage('收藏失败，请重试')
+  }
+}
+
+// 创建新收藏夹
+async function createNewFolder() {
+  if (!newFolderName.value.trim()) {
+    showToastMessage('请输入收藏夹名称')
+    return
+  }
+
+  try {
+    const res = await createFavoriteFolder(currentUserId.value, newFolderName.value.trim())
+    const folder = res?.data || res
+    if (folder && folder.folderId) {
+      favoriteFolders.value.push(folder)
+      showToastMessage('创建成功')
+      newFolderName.value = ''
+      showCreateFolder.value = false
+      
+      // 自动收藏到新创建的收藏夹
+      if (currentFavoritePost.value) {
+        await saveToFolder(folder.folderId)
+      }
+    }
+  } catch (error) {
+    console.error('创建收藏夹失败', error)
+    showToastMessage('创建失败，请重试')
   }
 }
 </script>
@@ -259,25 +461,149 @@ function toggleLike(post) {
 .page-title {
   font-size: 32px;
   font-weight: bold;
-  color: #333333; /* 修改文字颜色，以便在白色背景上显示 */
+  color: #333333;
   margin-top: 50px;
   margin-bottom: 1px;
 }
 
-/* 分类和搜索区域样式 - 修改为固定定位并设置白色背景 */
-.category-search-container {
-  position: fixed; /* 使用fixed固定定位替代sticky */
-  top: 0; /* 固定在顶部 */
-  left: 280px; /* 与侧边栏宽度一致，避免覆盖侧边栏 */
+/* 模态框样式 */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
   right: 0;
-  width: calc(100% - 280px); /* 计算宽度，确保不会覆盖侧边栏 */
-  z-index: 100; /* 确保它在其他内容之上 */
-  background-color: #ffffff; /* 白色背景 */
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.modal-content {
+  background: white;
+  border-radius: 16px;
+  padding: 24px;
+  min-width: 400px;
+  max-width: 500px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+}
+
+.modal-title {
+  font-size: 20px;
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 20px;
+}
+
+.folder-list {
+  max-height: 400px;
+  overflow-y: auto;
+  margin-bottom: 16px;
+}
+
+.folder-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.folder-item:hover {
+  background: #f5f5f5;
+}
+
+.folder-item.create-folder {
+  color: #8b5cf6;
+  font-weight: 500;
+}
+
+.folder-item .iconify {
+  font-size: 20px;
+}
+
+.folder-input {
+  width: 100%;
+  padding: 12px;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  font-size: 14px;
+  margin-bottom: 16px;
+}
+
+.folder-input:focus {
+  outline: none;
+  border-color: #8b5cf6;
+}
+
+.modal-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+}
+
+.modal-btn {
+  padding: 10px 24px;
+  border-radius: 8px;
+  border: none;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.modal-btn.cancel {
+  background: #f5f5f5;
+  color: #666;
+}
+
+.modal-btn.cancel:hover {
+  background: #e0e0e0;
+}
+
+.modal-btn.confirm {
+  background: #8b5cf6;
+  color: white;
+}
+
+.modal-btn.confirm:hover {
+  background: #7c3aed;
+}
+
+.modal-close-btn {
+  width: 100%;
+  padding: 10px;
+  border-radius: 8px;
+  border: none;
+  background: #f5f5f5;
+  color: #666;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.modal-close-btn:hover {
+  background: #e0e0e0;
+}
+
+/* 分类和搜索区域 */
+.category-search-container {
+  position: fixed;
+  top: 0;
+  left: 280px;
+  right: 0;
+  width: calc(100% - 280px);
+  z-index: 100;
+  background-color: #ffffff;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 15px 20px; /* 增加内边距 */
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1); /* 添加阴影以区分层次 */
+  padding: 15px 20px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
 .categories {
@@ -288,9 +614,9 @@ function toggleLike(post) {
 .category-btn {
   padding: 10px 20px;
   border-radius: 20px;
-  background: #f0f0f0; /* 浅灰色背景 */
+  background: #f0f0f0;
   border: none;
-  color: #333333; /* 深色文字 */
+  color: #333333;
   font-size: 16px;
   cursor: pointer;
   transition: all 0.2s;
@@ -302,7 +628,7 @@ function toggleLike(post) {
 
 .category-btn.active {
   background: #8b5cf6;
-  color: #ffffff; /* 激活状态文字为白色 */
+  color: #ffffff;
 }
 
 .search-container {
@@ -313,9 +639,9 @@ function toggleLike(post) {
   width: 200px;
   padding: 10px 40px 10px 15px;
   border-radius: 20px;
-  background: #f0f0f0; /* 浅灰色背景 */
+  background: #f0f0f0;
   border: 1px solid #e0e0e0;
-  color: #333333; /* 深色文字 */
+  color: #333333;
   font-size: 14px;
 }
 
@@ -332,32 +658,49 @@ function toggleLike(post) {
   transform: translateY(-50%);
   background: none;
   border: none;
-  color: #666666; /* 调整搜索图标颜色 */
+  color: #666666;
   cursor: pointer;
 }
 
-/* 帖子网格布局 - 两列排列，添加顶部内边距避免被固定栏遮挡 */
+/* 帖子网格布局 */
 .posts-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
   gap: 20px;
-  margin-top: 30px; /* 增加顶部间距，确保不被固定栏遮挡 */
+  margin-top: 30px;
 }
 
 .post-card {
-  background-color: #ffffff; /* 白色背景 */
+  background-color: #ffffff;
   border-radius: 12px;
   padding: 20px;
   transition: background-color 0.2s;
-  border: 1px solid #e0e0e0; /* 添加边框 */
+  border: 1px solid #e0e0e0;
 }
 
 .post-card:hover {
   background-color: #f9f9f9;
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.05); /* 添加轻微阴影 */
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.05);
 }
 
-/* 用户信息和帖子内容样式调整 */
+.post-header,
+.post-content,
+.post-image {
+  cursor: pointer;
+}
+
+.post-header:hover,
+.post-content:hover,
+.post-image:hover {
+  opacity: 0.95;
+}
+
+.post-header {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
 .user-info {
   display: flex;
   align-items: center;
@@ -378,12 +721,12 @@ function toggleLike(post) {
 
 .username {
   font-weight: 600;
-  color: #333333; /* 深色文字 */
+  color: #333333;
   font-size: 16px;
 }
 
 .user-handle {
-  color: #666666; /* 灰色文字 */
+  color: #666666;
   font-size: 14px;
 }
 
@@ -394,7 +737,7 @@ function toggleLike(post) {
 }
 
 .timestamp, .location {
-  color: #999999; /* 浅灰色文字 */
+  color: #999999;
   font-size: 12px;
   margin-bottom: 2px;
 }
@@ -404,7 +747,7 @@ function toggleLike(post) {
 }
 
 .post-caption {
-  color: #333333; /* 深色文字 */
+  color: #333333;
   font-size: 14px;
   line-height: 1.5;
   margin-bottom: 8px;
@@ -415,7 +758,6 @@ function toggleLike(post) {
   font-size: 12px;
 }
 
-/* 其他样式保持不变 */
 .post-image {
   margin-bottom: 16px;
 }
@@ -438,7 +780,7 @@ function toggleLike(post) {
   gap: 8px;
   background: none;
   border: none;
-  color: #666666; /* 调整按钮颜色 */
+  color: #666666;
   font-size: 14px;
   cursor: pointer;
   transition: color 0.2s;
@@ -452,13 +794,23 @@ function toggleLike(post) {
   font-size: 18px;
 }
 
-.fav-inline { display:inline-flex; align-items:center; gap:6px; margin-left:10px; color:#6b7280; cursor:pointer }
-.fav-inline .fav-count { font-size:13px; color:#374151; margin-left:4px }
+.action-btn.liked {
+  color: #ef4444;
+}
 
-.toast { position: fixed; top: 90px; right: 40px; background: rgba(17,24,39,0.95); color: #fff; padding: 10px 14px; border-radius: 8px; box-shadow: 0 6px 18px rgba(15,23,42,0.25); z-index: 200 }
+.action-btn.favorited {
+  color: #10b981;
+}
 
-/* active states */
-.action-btn.liked { color: #ef4444 } /* 红心 */
-.action-btn.favorited { color: #10b981 } /* 绿色收藏 */
-.post-actions .iconify { transition: color 0.15s }
+.toast {
+  position: fixed;
+  top: 90px;
+  right: 40px;
+  background: rgba(17, 24, 39, 0.95);
+  color: #fff;
+  padding: 10px 14px;
+  border-radius: 8px;
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.25);
+  z-index: 200;
+}
 </style>

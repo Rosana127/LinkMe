@@ -94,6 +94,32 @@ export function getPosts(params = {}) {
   })
 }
 
+/**
+ * 点赞帖子
+ * @param {Number|String} postId
+ * @param {Number} userId
+ */
+export function likePost(postId, userId) {
+  return request({
+    url: `/posts/${postId}/like`,
+    method: 'post',
+    data: { userId }
+  })
+}
+
+/**
+ * 取消点赞
+ * @param {Number|String} postId
+ * @param {Number} userId
+ */
+export function unlikePost(postId, userId) {
+  return request({
+    url: `/posts/${postId}/like`,
+    method: 'delete',
+    data: { userId }
+  })
+}
+
 const postsApi = {
   createPost,
   getUserPosts,
@@ -101,7 +127,9 @@ const postsApi = {
   getPosts,
   getPost,
   getComments,
-  postComment
+  postComment,
+  likePost,
+  unlikePost
 }
 
 export default postsApi

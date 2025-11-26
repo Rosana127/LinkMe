@@ -54,13 +54,6 @@
         <span>Messages</span>
       </button>
       <button 
-        @click="navigateTo('profile')" 
-        :class="['nav-link', { active: $route.name === 'profile' }]"
-      >
-        <span class="iconify" data-icon="mdi:bookmark-outline" data-inline="false"></span>
-        <span>Saved</span>
-      </button>
-      <button 
         @click="navigateTo('home')" 
         :class="['nav-link', { active: $route.name === 'home' }]"
       >
@@ -108,7 +101,7 @@ const userAvatar = computed(() => authStore.user?.avatarUrl || 'https://modao.cc
 
 const navigateTo = (routeName) => {
   // 如果需要登录的路由，检查登录状态
-  const requiresAuthRoutes = ['home', 'match', 'chat', 'profile', 'settings', 'create']
+  const requiresAuthRoutes = ['home', 'match', 'chat', 'settings', 'create']
   if (requiresAuthRoutes.includes(routeName) && !authStore.isAuthenticated) {
     router.push({ name: 'login', query: { redirect: `/${routeName}` } })
   } else {

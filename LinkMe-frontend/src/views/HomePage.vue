@@ -6,57 +6,98 @@
     <div class="profile-card">
       <div class="profile-header">
         <img 
-          src="https://modao.cc/ai/uploads/ai_pics/32/327755/aigp_1758963762.jpeg" 
+          :src="userInfo?.avatarUrl || 'https://modao.cc/ai/uploads/ai_pics/32/327755/aigp_1758963762.jpeg'" 
           alt="Profile" 
           class="profile-avatar"
         >
         <div class="profile-info">
-          <h2 class="profile-name">babycat</h2>
-          <p class="profile-handle">@babycat</p>
-          <p class="profile-bio">Love cats, travel and photography 📸</p>
+          <h2 class="profile-name">{{ userInfo?.nickname || userInfo?.username || 'User' }}</h2>
+          <p class="profile-handle">@{{ userInfo?.username || 'username' }}</p>
+          <p class="profile-bio">{{ userInfo?.bio || 'Love cats, travel and photography 📸' }}</p>
         </div>
-        <button class="edit-profile-btn">Edit Profile</button>
+        <button class="edit-profile-btn" @click="$router.push('/settings')">Edit Profile</button>
       </div>
       
       <div class="profile-stats">
         <div class="stat-item">
-          <span class="stat-number">156</span>
+          <span class="stat-number">{{ postCount }}</span>
           <span class="stat-label">Posts</span>
         </div>
         <div class="stat-item">
-          <span class="stat-number">1.2K</span>
-          <span class="stat-label">Followers</span>
+          <span class="stat-number">{{ likeCount }}</span>
+          <span class="stat-label">Likes</span>
         </div>
         <div class="stat-item">
-          <span class="stat-number">892</span>
-          <span class="stat-label">Following</span>
+          <span class="stat-number">{{ favoriteCount }}</span>
+          <span class="stat-label">Favorites</span>
         </div>
       </div>
     </div>
     
-    <!-- 我的动态 -->
-    <div class="my-posts-section">
-      <h3 class="section-title">My Posts</h3>
-      <div class="posts-grid">
+    <!-- 标签切换 -->
+    <div class="tabs-section">
+      <div class="tabs">
+        <button 
+          v-for="tab in tabs" 
+          :key="tab.key"
+          :class="['tab-button', { active: activeTab === tab.key }]"
+          @click="switchTab(tab.key)"
+        >
+          <span class="iconify" :data-icon="tab.icon" data-inline="false"></span>
+          {{ tab.label }}
+        </button>
+      </div>
+    </div>
+    
+    <!-- 收藏夹选择（仅在收藏标签时显示） -->
+    <div v-if="activeTab === 'favorites'" class="folder-selector">
+      <div class="folder-list">
+        <button 
+          v-for="folder in favoriteFolders" 
+          :key="folder.folderId"
+          :class="['folder-btn', { active: selectedFolderId === folder.folderId }]"
+          @click="selectFolder(folder.folderId)"
+        >
+          {{ folder.name }}
+        </button>
+        <button class="folder-btn add-folder-btn" @click="showCreateFolderDialog = true">
+          <span class="iconify" data-icon="mdi:plus" data-inline="false"></span>
+          新建收藏夹
+        </button>
+      </div>
+    </div>
+    
+    <!-- 帖子网格 -->
+    <div class="posts-section">
+      <div v-if="loading" class="loading">加载中...</div>
+      <div v-else-if="displayPosts.length === 0" class="empty-state">
+        <p>暂无内容</p>
+      </div>
+      <div v-else class="posts-grid">
         <div 
-          v-for="post in myPosts" 
-          :key="post.id"
+          v-for="post in displayPosts" 
+          :key="post.postId"
           class="post-item"
+          @click="goToPostDetail(post.postId)"
         >
           <img 
-            :src="post.image" 
-            :alt="post.caption" 
+            v-if="post.images && post.images.length > 0"
+            :src="post.images[0]" 
+            :alt="post.content" 
             class="post-thumbnail"
           >
+          <div v-else class="post-thumbnail no-image">
+            <span class="iconify" data-icon="mdi:image-off" data-inline="false"></span>
+          </div>
           <div class="post-overlay">
             <div class="post-stats">
               <span class="stat">
                 <span class="iconify" data-icon="mdi:heart" data-inline="false"></span>
-                {{ post.likes }}
+                {{ post.likes || 0 }}
               </span>
               <span class="stat">
                 <span class="iconify" data-icon="mdi:comment" data-inline="false"></span>
-                {{ post.comments }}
+                {{ post.comments || 0 }}
               </span>
             </div>
           </div>
@@ -64,65 +105,242 @@
       </div>
     </div>
     
-    <!-- 注意：最近活动部分已移至消息中心页面 -->
+    <!-- 创建收藏夹对话框 -->
+    <div v-if="showCreateFolderDialog" class="modal-overlay" @click="showCreateFolderDialog = false">
+      <div class="modal-content" @click.stop>
+        <h3>创建收藏夹</h3>
+        <input 
+          v-model="newFolderName" 
+          type="text" 
+          placeholder="收藏夹名称"
+          class="folder-input"
+          @keyup.enter="createFolder"
+        >
+        <div class="modal-actions">
+          <button class="btn-cancel" @click="showCreateFolderDialog = false">取消</button>
+          <button class="btn-confirm" @click="createFolder">创建</button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, computed, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
+import { useAuthStore } from '@/stores/auth'
+import { getUserInfo } from '@/api/user'
+import { getUserPosts, getPost } from '@/api/posts'
+import { getUserLikedPosts, getUserFavoritePosts, getFavoriteFolders, createFavoriteFolder } from '@/api/favorites'
 
-const myPosts = ref([
-  {
-    id: 1,
-    image: 'https://modao.cc/ai/uploads/ai_pics/32/327755/aigp_1758963762.jpeg',
-    caption: 'Beautiful cat in the world',
-    likes: 156,
-    comments: 23
-  },
-  {
-    id: 2,
-    image: 'https://modao.cc/ai/uploads/ai_pics/32/327752/aigp_1758963757.jpeg',
-    caption: 'Amazing sunset in Tokyo',
-    likes: 89,
-    comments: 12
-  },
-  {
-    id: 3,
-    image: 'https://modao.cc/ai/uploads/ai_pics/32/327754/aigp_1758963760.jpeg',
-    caption: 'Stockholm, Sweden',
-    likes: 234,
-    comments: 45
-  },
-  {
-    id: 4,
-    image: 'https://modao.cc/ai/uploads/ai_pics/32/327749/aigp_1758963751.jpeg',
-    caption: 'Morning coffee',
-    likes: 67,
-    comments: 8
-  },
-  {
-    id: 5,
-    image: 'https://modao.cc/ai/uploads/ai_pics/32/327748/aigp_1758963749.jpeg',
-    caption: 'Weekend vibes',
-    likes: 123,
-    comments: 19
-  },
-  {
-    id: 6,
-    image: 'https://modao.cc/ai/uploads/ai_pics/32/327747/aigp_1758963748.jpeg',
-    caption: 'Nature walk',
-    likes: 78,
-    comments: 15
+const router = useRouter()
+const authStore = useAuthStore()
+
+// 用户信息
+const userInfo = ref(null)
+const loading = ref(false)
+
+// 标签切换
+const activeTab = ref('posts') // posts, likes, favorites
+const tabs = [
+  { key: 'posts', label: '我的帖子', icon: 'mdi:grid' },
+  { key: 'likes', label: '赞过的', icon: 'mdi:heart' },
+  { key: 'favorites', label: '收藏的', icon: 'mdi:bookmark' }
+]
+
+// 数据
+const myPosts = ref([])
+const likedPosts = ref([])
+const favoritePosts = ref([])
+const favoriteFolders = ref([])
+const selectedFolderId = ref(null)
+const showCreateFolderDialog = ref(false)
+const newFolderName = ref('')
+
+// 统计数据
+const postCount = computed(() => myPosts.value.length)
+const likeCount = computed(() => likedPosts.value.length)
+const favoriteCount = computed(() => favoritePosts.value.length)
+
+// 当前显示的帖子
+const displayPosts = computed(() => {
+  if (activeTab.value === 'posts') {
+    return myPosts.value
+  } else if (activeTab.value === 'likes') {
+    return likedPosts.value
+  } else if (activeTab.value === 'favorites') {
+    if (selectedFolderId.value) {
+      return favoritePosts.value.filter(p => p.folderId === selectedFolderId.value)
+    }
+    return favoritePosts.value
   }
-])
+  return []
+})
 
-// 注意：最近活动数据已移至ChatPage.vue
+// 切换标签
+async function switchTab(tab) {
+  activeTab.value = tab
+  selectedFolderId.value = null
+  
+  if (tab === 'posts') {
+    await loadMyPosts()
+  } else if (tab === 'likes') {
+    await loadLikedPosts()
+  } else if (tab === 'favorites') {
+    await loadFavoriteFolders()
+    await loadFavoritePosts()
+  }
+}
+
+// 选择收藏夹
+function selectFolder(folderId) {
+  selectedFolderId.value = selectedFolderId.value === folderId ? null : folderId
+}
+
+// 创建收藏夹
+async function createFolder() {
+  if (!newFolderName.value.trim()) {
+    alert('请输入收藏夹名称')
+    return
+  }
+  
+  try {
+    const userId = authStore.userId
+    if (!userId) {
+      alert('请先登录')
+      return
+    }
+    
+    await createFavoriteFolder(userId, newFolderName.value.trim())
+    newFolderName.value = ''
+    showCreateFolderDialog.value = false
+    await loadFavoriteFolders()
+  } catch (error) {
+    console.error('创建收藏夹失败:', error)
+    alert('创建收藏夹失败: ' + (error.message || '未知错误'))
+  }
+}
+
+// 加载我的帖子
+async function loadMyPosts() {
+  const userId = authStore.userId
+  if (!userId) return
+  
+  loading.value = true
+  try {
+    const posts = await getUserPosts(userId)
+    myPosts.value = Array.isArray(posts) ? posts : (posts?.data || [])
+    // 确保每个帖子都有 images 数组
+    myPosts.value = myPosts.value.map(post => ({
+      ...post,
+      images: post.images || (post.imageUrl ? [post.imageUrl] : []),
+      likes: post.likes || 0,
+      comments: post.comments || 0
+    }))
+  } catch (error) {
+    console.error('加载我的帖子失败:', error)
+    myPosts.value = []
+  } finally {
+    loading.value = false
+  }
+}
+
+// 加载点赞的帖子
+async function loadLikedPosts() {
+  const userId = authStore.userId
+  if (!userId) return
+  
+  loading.value = true
+  try {
+    const likes = await getUserLikedPosts(userId)
+    // likes 返回的是 Like 对象数组，需要获取对应的帖子
+    const postPromises = likes.map(like => getPost(like.postId))
+    const posts = await Promise.all(postPromises)
+    likedPosts.value = posts.map(post => ({
+      ...post,
+      images: post.images || (post.imageUrl ? [post.imageUrl] : []),
+      likes: post.likes || 0,
+      comments: post.comments || 0
+    }))
+  } catch (error) {
+    console.error('加载点赞帖子失败:', error)
+    likedPosts.value = []
+  } finally {
+    loading.value = false
+  }
+}
+
+// 加载收藏的帖子
+async function loadFavoritePosts() {
+  const userId = authStore.userId
+  if (!userId) return
+  
+  loading.value = true
+  try {
+    const favorites = await getUserFavoritePosts(userId, selectedFolderId.value)
+    // favorites 返回的是 Favorite 对象数组，需要获取对应的帖子
+    const postPromises = favorites.map(fav => getPost(fav.postId))
+    const posts = await Promise.all(postPromises)
+    favoritePosts.value = posts.map((post, index) => ({
+      ...post,
+      folderId: favorites[index].folderId,
+      images: post.images || (post.imageUrl ? [post.imageUrl] : []),
+      likes: post.likes || 0,
+      comments: post.comments || 0
+    }))
+  } catch (error) {
+    console.error('加载收藏帖子失败:', error)
+    favoritePosts.value = []
+  } finally {
+    loading.value = false
+  }
+}
+
+// 加载收藏夹列表
+async function loadFavoriteFolders() {
+  const userId = authStore.userId
+  if (!userId) return
+  
+  try {
+    const folders = await getFavoriteFolders(userId)
+    favoriteFolders.value = Array.isArray(folders) ? folders : (folders?.data || [])
+  } catch (error) {
+    console.error('加载收藏夹失败:', error)
+    favoriteFolders.value = []
+  }
+}
+
+// 加载用户信息
+async function loadUserInfo() {
+  const userId = authStore.userId
+  if (!userId) return
+  
+  try {
+    const info = await getUserInfo(userId)
+    userInfo.value = info?.data || info || authStore.user
+  } catch (error) {
+    console.error('加载用户信息失败:', error)
+    userInfo.value = authStore.user
+  }
+}
+
+// 跳转到帖子详情
+function goToPostDetail(postId) {
+  router.push(`/post/${postId}`)
+}
+
+// 初始化
+onMounted(async () => {
+  await loadUserInfo()
+  await loadMyPosts()
+})
 </script>
 
 <style scoped>
 .home-page {
   max-width: 600px;
   margin: 0 auto;
+  padding-bottom: 30px;
 }
 
 .page-title {
@@ -218,15 +436,109 @@ const myPosts = ref([
   margin-top: 4px;
 }
 
-.my-posts-section {
+/* 标签切换 */
+.tabs-section {
+  margin-bottom: 20px;
+}
+
+.tabs {
+  display: flex;
+  gap: 8px;
+  border-bottom: 1px solid #333333;
+}
+
+.tab-button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 20px;
+  background: none;
+  border: none;
+  color: #888888;
+  font-size: 16px;
+  font-weight: 500;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  transition: all 0.2s;
+}
+
+.tab-button:hover {
+  color: #ffffff;
+}
+
+.tab-button.active {
+  color: #8b5cf6;
+  border-bottom-color: #8b5cf6;
+}
+
+.tab-button .iconify {
+  font-size: 18px;
+}
+
+/* 收藏夹选择器 */
+.folder-selector {
+  margin-bottom: 20px;
+  padding: 16px;
+  background-color: #1a1a1a;
+  border-radius: 12px;
+}
+
+.folder-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.folder-btn {
+  padding: 8px 16px;
+  background-color: #2a2a2a;
+  border: 1px solid #333333;
+  border-radius: 20px;
+  color: #ffffff;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.folder-btn:hover {
+  background-color: #3a3a3a;
+  border-color: #8b5cf6;
+}
+
+.folder-btn.active {
+  background-color: #8b5cf6;
+  border-color: #8b5cf6;
+}
+
+.add-folder-btn {
+  background-color: transparent;
+  border: 1px dashed #555555;
+  color: #888888;
+}
+
+.add-folder-btn:hover {
+  border-color: #8b5cf6;
+  color: #8b5cf6;
+}
+
+/* 帖子区域 */
+.posts-section {
   margin-bottom: 30px;
 }
 
-.section-title {
-  font-size: 20px;
-  font-weight: bold;
-  color: #ffffff;
-  margin-bottom: 20px;
+.loading {
+  text-align: center;
+  padding: 40px;
+  color: #888888;
+}
+
+.empty-state {
+  text-align: center;
+  padding: 40px;
+  color: #888888;
 }
 
 .posts-grid {
@@ -241,12 +553,25 @@ const myPosts = ref([
   border-radius: 8px;
   overflow: hidden;
   cursor: pointer;
+  background-color: #2a2a2a;
 }
 
 .post-thumbnail {
   width: 100%;
   height: 100%;
   object-fit: cover;
+}
+
+.post-thumbnail.no-image {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: #1a1a1a;
+  color: #555555;
+}
+
+.post-thumbnail.no-image .iconify {
+  font-size: 48px;
 }
 
 .post-overlay {
@@ -285,48 +610,83 @@ const myPosts = ref([
   font-size: 16px;
 }
 
-.recent-activity {
-  margin-bottom: 30px;
-}
-
-.activity-list {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-.activity-item {
+/* 模态框 */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.7);
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 12px;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.modal-content {
   background-color: #1a1a1a;
-  border-radius: 8px;
+  border-radius: 12px;
+  padding: 24px;
+  width: 90%;
+  max-width: 400px;
 }
 
-.activity-avatar {
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  object-fit: cover;
-}
-
-.activity-content {
-  flex: 1;
-}
-
-.activity-text {
+.modal-content h3 {
   color: #ffffff;
+  font-size: 20px;
+  margin: 0 0 20px 0;
+}
+
+.folder-input {
+  width: 100%;
+  padding: 12px;
+  background-color: #2a2a2a;
+  border: 1px solid #333333;
+  border-radius: 8px;
+  color: #ffffff;
+  font-size: 16px;
+  margin-bottom: 20px;
+  box-sizing: border-box;
+}
+
+.folder-input:focus {
+  outline: none;
+  border-color: #8b5cf6;
+}
+
+.modal-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+}
+
+.btn-cancel,
+.btn-confirm {
+  padding: 10px 20px;
+  border: none;
+  border-radius: 8px;
   font-size: 14px;
-  margin: 0 0 4px 0;
-}
-
-.activity-user {
   font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
 }
 
-.activity-time {
-  color: #888888;
-  font-size: 12px;
+.btn-cancel {
+  background-color: #2a2a2a;
+  color: #ffffff;
+}
+
+.btn-cancel:hover {
+  background-color: #3a3a3a;
+}
+
+.btn-confirm {
+  background-color: #8b5cf6;
+  color: #ffffff;
+}
+
+.btn-confirm:hover {
+  background-color: #7c3aed;
 }
 </style>

@@ -72,12 +72,12 @@ const isAuthPage = computed(() => {
   return route.name === 'login' || route.name === 'register'
 })
 
-// 控制右侧栏显示，只有profile页面显示，且需要登录
+// 控制右侧栏显示，只有home页面显示，且需要登录
 const showRightSidebar = computed(() => {
   if (!authStore.isAuthenticated) {
     return false // 未登录时不显示右侧栏
   }
-  return route.name === 'profile' // 只显示profile页面的右侧栏
+  return route.name === 'home' // 只显示home页面的右侧栏
 })
 
 
