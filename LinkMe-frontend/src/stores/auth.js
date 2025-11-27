@@ -9,7 +9,12 @@ export const useAuthStore = defineStore('auth', {
 
   getters: {
     isAuthenticated: (state) => !!state.token,
-    userId: (state) => state.user?.userId || null
+    // Try multiple possible id field names to be tolerant to backend differences
+    userId: (state) => {
+      const u = state.user
+      if (!u) return null
+      return u.userId || u.id || u.user_id || null
+    }
   },
 
   actions: {

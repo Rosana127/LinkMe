@@ -71,6 +71,17 @@ export function getUserInfo(userId) {
 }
 
 /**
+ * 获取当前用户信息
+ * @returns {Promise}
+ */
+export function getCurrentUserInfo() {
+  return request({
+    url: '/users/me',
+    method: 'get'
+  })
+}
+
+/**
  * 更新用户信息
  * @param {Number} userId 用户ID
  * @param {Object} userData 用户数据
@@ -79,6 +90,19 @@ export function getUserInfo(userId) {
 export function updateUserInfo(userId, userData) {
   return request({
     url: `/user/${userId}/info`,
+    method: 'put',
+    data: userData
+  })
+}
+
+/**
+ * 更新当前登录用户信息（使用 /users/me 端点）
+ * @param {Object} userData 用户数据
+ * @returns {Promise}
+ */
+export function updateCurrentUser(userData) {
+  return request({
+    url: '/users/me',
     method: 'put',
     data: userData
   })

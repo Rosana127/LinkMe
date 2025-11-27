@@ -6,7 +6,7 @@
     <div class="profile-card">
       <div class="profile-header">
         <img 
-          :src="userInfo?.avatarUrl || 'https://modao.cc/ai/uploads/ai_pics/32/327755/aigp_1758963762.jpeg'" 
+          :src="userInfo?.avatar || userInfo?.avatarUrl || 'https://modao.cc/ai/uploads/ai_pics/32/327755/aigp_1758963762.jpeg'" 
           alt="Profile" 
           class="profile-avatar"
         >
@@ -14,6 +14,15 @@
           <h2 class="profile-name">{{ userInfo?.nickname || userInfo?.username || 'User' }}</h2>
           <p class="profile-handle">@{{ userInfo?.username || 'username' }}</p>
           <p class="profile-bio">{{ userInfo?.bio || 'Love cats, travel and photography 📸' }}</p>
+          <div v-if="userTags.length > 0" class="profile-tags">
+            <span 
+              v-for="tag in userTags" 
+              :key="tag.id || tag"
+              class="profile-tag"
+            >
+              {{ tag.name || tag }}
+            </span>
+          </div>
         </div>
         <button class="edit-profile-btn" @click="$router.push('/settings')">Edit Profile</button>
       </div>
@@ -129,7 +138,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
-import { getUserInfo } from '@/api/user'
+import { getCurrentUserInfo } from '@/api/user'
 import { getUserPosts, getPost } from '@/api/posts'
 import { getUserLikedPosts, getUserFavoritePosts, getFavoriteFolders, createFavoriteFolder } from '@/api/favorites'
 
@@ -139,6 +148,9 @@ const authStore = useAuthStore()
 // 用户信息
 const userInfo = ref(null)
 const loading = ref(false)
+
+// 用户标签（从 userInfo 中提取）
+const userTags = ref([])
 
 // 标签切换
 const activeTab = ref('posts') // posts, likes, favorites
@@ -312,15 +324,51 @@ async function loadFavoriteFolders() {
 
 // 加载用户信息
 async function loadUserInfo() {
-  const userId = authStore.userId
-  if (!userId) return
-  
   try {
-    const info = await getUserInfo(userId)
+    // 使用新的 API 端点获取当前用户信息
+    const info = await getCurrentUserInfo()
     userInfo.value = info?.data || info || authStore.user
+    
+    // 处理标签：提取标签信息
+    if (userInfo.value) {
+      const tags = userInfo.value.tags || userInfo.value.tagIds || []
+      if (Array.isArray(tags) && tags.length > 0) {
+        // 如果标签是对象数组（包含 id 和 name）
+        if (typeof tags[0] === 'object' && tags[0] !== null) {
+          userTags.value = tags.map(tag => ({
+            id: tag.id || tag.tagId || tag.tag_id,
+            name: tag.name || tag.tagName || tag.tag_name || '未知标签'
+          }))
+        } else {
+          // 如果标签是 ID 数组或字符串数组
+          userTags.value = tags.map(tag => ({
+            id: tag,
+            name: typeof tag === 'string' ? tag : `标签 ${tag}`
+          }))
+        }
+      } else {
+        userTags.value = []
+      }
+      
+      // 如果成功获取用户信息，更新本地存储
+      if (authStore.user) {
+        authStore.user = { ...authStore.user, ...userInfo.value }
+        localStorage.setItem('user', JSON.stringify(authStore.user))
+      }
+    }
   } catch (error) {
     console.error('加载用户信息失败:', error)
-    userInfo.value = authStore.user
+    // 如果 API 失败，尝试使用本地存储的用户信息
+    userInfo.value = authStore.user || {}
+    // 从本地存储的用户信息中提取标签
+    if (userInfo.value && (userInfo.value.tags || userInfo.value.tagIds)) {
+      const tags = userInfo.value.tags || userInfo.value.tagIds || []
+      userTags.value = Array.isArray(tags) ? tags.map(tag => 
+        typeof tag === 'object' ? tag : { id: tag, name: typeof tag === 'string' ? tag : `标签 ${tag}` }
+      ) : []
+    } else {
+      userTags.value = []
+    }
   }
 }
 
@@ -392,7 +440,24 @@ onMounted(async () => {
   color: #ffffff;
   font-size: 14px;
   line-height: 1.5;
-  margin: 0;
+  margin: 0 0 12px 0;
+}
+
+.profile-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.profile-tag {
+  display: inline-block;
+  padding: 4px 10px;
+  background-color: #8b5cf6;
+  color: #ffffff;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 500;
 }
 
 .edit-profile-btn {

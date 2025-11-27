@@ -50,13 +50,31 @@ request.interceptors.response.use(
     // 2) 传统 RESTful 返回直接的对象或数组 (可能伴随 HTTP 200/201) -> 直接返回 response.data
     const res = response.data
 
-    // 如果后端使用统一 code 结构
-    if (res && typeof res === 'object' && Object.prototype.hasOwnProperty.call(res, 'code')) {
-      if (res.code === 200) {
-        return res.data
+    // 如果后端使用统一 code/成功标识结构，兼容常见情况：code===200 或 code===0 或 success===true
+    if (res && typeof res === 'object') {
+      if (Object.prototype.hasOwnProperty.call(res, 'code')) {
+        const okCodes = [200, '200', 0, '0']
+        if (okCodes.includes(res.code)) {
+          return res.data !== undefined ? res.data : res
+        }
+        const message = res.message || res.msg || '请求失败'
+        const err = new Error(message)
+        // attach original response body for richer debugging
+        err.httpData = res
+        err.status = response.status
+        return Promise.reject(err)
       }
-      const message = res.message || '请求失败'
-      return Promise.reject(new Error(message))
+
+      if (Object.prototype.hasOwnProperty.call(res, 'success')) {
+        if (res.success === true) {
+          return res.data !== undefined ? res.data : res
+        }
+        const message = res.message || res.error || '请求失败'
+        const err = new Error(message)
+        err.httpData = res
+        err.status = response.status
+        return Promise.reject(err)
+      }
     }
 
     // 否则当作标准 RESTful 响应直接返回（允许 200/201 等）
