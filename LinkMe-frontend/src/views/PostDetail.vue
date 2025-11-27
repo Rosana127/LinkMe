@@ -22,8 +22,27 @@
       <div class="post-body">
         <p class="caption">{{ post.caption }}</p>
         <div class="hashtags">{{ post.hashtags }}</div>
-        <div v-if="post.image" class="post-image">
-          <img :src="post.image" alt="post image" />
+        <div v-if="currentImageSrc" class="post-image">
+          <img :src="currentImageSrc" alt="post image" />
+          <button
+            v-if="post.images.length > 1"
+            class="carousel-arrow prev"
+            :disabled="currentImageIndex === 0"
+            @click="showPrevImage"
+          >
+            ‹
+          </button>
+          <button
+            v-if="post.images.length > 1"
+            class="carousel-arrow next"
+            :disabled="currentImageIndex === post.images.length - 1"
+            @click="showNextImage"
+          >
+            ›
+          </button>
+          <div v-if="post.images.length > 1" class="image-counter">
+            {{ currentImageIndex + 1 }} / {{ post.images.length }}
+          </div>
         </div>
       </div>
 
@@ -69,7 +88,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { getPost, getComments, postComment } from '@/api/posts'
 import { useAuthStore } from '@/stores/auth'
@@ -79,7 +98,7 @@ const router = useRouter()
 const authStore = useAuthStore()
 const id = route.params.id
 
-const post = ref({ author: {}, caption:'', hashtags:'', image:'', likes:0 })
+const post = ref({ author: {}, caption:'', hashtags:'', image:'', likes:0, images: [] })
 
 // local reactive state for likes/comments
 const likes = ref(0)
@@ -87,12 +106,21 @@ const comments = ref([])
 const favorites = ref(0)
 const newComment = ref('')
 const commentInput = ref(null)
+const currentImageIndex = ref(0)
 
 // toggleable states
 const liked = ref(false)
 const favorited = ref(false)
 const loading = ref(false)
 const error = ref('')
+
+const currentImageSrc = computed(() => {
+  if (post.value.images && post.value.images.length) {
+    const img = post.value.images[currentImageIndex.value] || post.value.images[0]
+    return img?.url || img?.data || ''
+  }
+  return post.value.image || ''
+})
 
 function toggleLike() {
   if (liked.value) {
@@ -162,8 +190,17 @@ async function loadPost() {
     // map backend fields to view
     // 后端现在直接在Post对象中包含用户信息字段（nickname, username, avatarUrl）
     const author = data.user || data.author || data.creator || {}
-    const images = Array.isArray(data.images) ? data.images : (data.images ? [data.images] : [])
-    const firstImage = images.length ? (typeof images[0] === 'string' ? images[0] : (images[0].url || images[0].path || images[0].data || null)) : null
+    const normalizedImages = normalizeImages(
+      data.images ||
+      data.postImages ||
+      data.imageList ||
+      data.postImageList ||
+      data.post_images ||
+      []
+    )
+    const firstImage = normalizedImages.length
+      ? normalizedImages[0].url || normalizedImages[0].data
+      : null
     post.value = {
       id: data.id ?? data._id ?? data.postId,
       author: {
@@ -177,8 +214,10 @@ async function loadPost() {
       hashtags: Array.isArray(data.tags) ? data.tags.join(' ') : (data.tags || ''),
       image: firstImage,
       likes: data.likes ?? data.likeCount ?? 0,
-      favorites: data.favorites ?? data.bookmarks ?? 0
+      favorites: data.favorites ?? data.bookmarks ?? 0,
+      images: normalizedImages
     }
+    currentImageIndex.value = 0
     likes.value = post.value.likes
     favorites.value = post.value.favorites || 0
     // load comments
@@ -231,6 +270,34 @@ function goBack() {
   }
 }
 
+function normalizeImages(raw) {
+  if (!Array.isArray(raw)) raw = raw ? [raw] : []
+  return raw
+    .map((img, idx) => {
+      if (!img) return null
+      if (typeof img === 'string') return { url: img, order: idx }
+      const order = img.imageOrder ?? img.image_order ?? img.order ?? idx
+      const url = img.url || img.imageUrl || img.image_url || img.path || img.thumb || null
+      const data = img.data || img.base64 || null
+      if (!url && !data) return null
+      return { url, data, order }
+    })
+    .filter(Boolean)
+    .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+}
+
+function showNextImage() {
+  if (currentImageIndex.value < post.value.images.length - 1) {
+    currentImageIndex.value += 1
+  }
+}
+
+function showPrevImage() {
+  if (currentImageIndex.value > 0) {
+    currentImageIndex.value -= 1
+  }
+}
+
 onMounted(() => {
   loadPost()
 })
@@ -278,7 +345,57 @@ onMounted(() => {
 .user-avatar { width:48px; height:48px; border-radius:50%; object-fit:cover }
 .user-info .username { font-weight:700 }
 .post-body { margin-top:12px }
-.post-image img { width:100%; border-radius:8px; margin-top:8px }
+.post-image {
+  position: relative;
+  width: 100%;
+  min-height: 320px;
+  max-height: 520px;
+  margin-top: 12px;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.post-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  background: #000;
+}
+.carousel-arrow {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  background: rgba(0,0,0,0.5);
+  color: #fff;
+  border: none;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+}
+.carousel-arrow.prev { left: 10px; }
+.carousel-arrow.next { right: 10px; }
+.carousel-arrow:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.image-counter {
+  position: absolute;
+  bottom: 12px;
+  right: 16px;
+  background: rgba(0,0,0,0.6);
+  color: #fff;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+}
 .post-interact { display:flex; gap:12px; margin-top:12px }
 .like-btn, .comment-btn { padding:8px 12px; border-radius:8px; border:1px solid #e5e7eb; background:#fff; cursor:pointer }
 .comments-section { margin-top:16px; max-height:300px; overflow:auto }

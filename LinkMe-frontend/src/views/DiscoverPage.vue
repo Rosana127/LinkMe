@@ -76,9 +76,13 @@
       </div>
     </div>
     
-    <!-- 动态流 -->
+    <!-- 加载状态和错误提示 -->
+    <div v-if="loading" class="loading-message">加载中...</div>
+    <div v-if="error && !loading" class="error-message">{{ error }}</div>
+    
+    <!-- 动态流 - 保持两列布局，确保有足够的顶部内边距避免被固定栏遮挡 -->
     <div class="posts-grid">
-      <div v-for="post in filteredPosts" :key="post.id" class="post-card">
+      <router-link v-for="post in filteredPosts" :key="post.id" :to="{ name: 'post', params: { id: post.id } }" class="post-card post-link">
         <!-- 用户信息 -->
         <div class="post-header" @click="openPost(post.id)">
           <div class="user-info">
@@ -156,42 +160,6 @@ const allPosts = ref([])
 const recommendedPosts = ref([])
 const followingPosts = ref([])
 
-// 收藏夹相关
-const showFolderModal = ref(false)
-const showCreateFolder = ref(false)
-const favoriteFolders = ref([])
-const newFolderName = ref('')
-const currentFavoritePost = ref(null)
-
-// 从 localStorage 获取点赞和收藏状态
-function getLocalLikeStatus(postId) {
-  const key = `liked_${currentUserId.value}_${postId}`
-  return localStorage.getItem(key) === 'true'
-}
-
-function setLocalLikeStatus(postId, liked) {
-  const key = `liked_${currentUserId.value}_${postId}`
-  if (liked) {
-    localStorage.setItem(key, 'true')
-  } else {
-    localStorage.removeItem(key)
-  }
-}
-
-function getLocalFavoriteStatus(postId) {
-  const key = `favorited_${currentUserId.value}_${postId}`
-  return localStorage.getItem(key) === 'true'
-}
-
-function setLocalFavoriteStatus(postId, favorited) {
-  const key = `favorited_${currentUserId.value}_${postId}`
-  if (favorited) {
-    localStorage.setItem(key, 'true')
-  } else {
-    localStorage.removeItem(key)
-  }
-}
-
 function mapBackendToView(raw) {
   const author = raw.user || raw.author || raw.creator || {}
   const images = Array.isArray(raw.images) ? raw.images : (raw.images ? [raw.images] : [])
@@ -220,6 +188,8 @@ function mapBackendToView(raw) {
 }
 
 async function loadExplore() {
+  loading.value = true
+  error.value = ''
   try {
     const res = await getPosts()
     const arr = Array.isArray(res) ? res : (res?.data && Array.isArray(res.data) ? res.data : [])
@@ -228,12 +198,16 @@ async function loadExplore() {
     followingPosts.value = allPosts.value.filter(p => p.author && p.author.isFollowed)
   } catch (e) {
     console.error('加载探索帖子失败', e)
+    // 如果是401错误且未登录，这是正常的，不显示错误
+    // 其他错误可能是网络问题或服务器错误
     if (e.message && !e.message.includes('401') && !e.message.includes('未授权')) {
       console.warn('获取帖子列表失败，可能是网络问题或服务器错误')
     }
     allPosts.value = []
     recommendedPosts.value = []
     followingPosts.value = []
+  } finally {
+    loading.value = false
   }
 }
 
@@ -802,15 +776,10 @@ async function createNewFolder() {
   color: #10b981;
 }
 
-.toast {
-  position: fixed;
-  top: 90px;
-  right: 40px;
-  background: rgba(17, 24, 39, 0.95);
-  color: #fff;
-  padding: 10px 14px;
-  border-radius: 8px;
-  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.25);
-  z-index: 200;
-}
+.toast { position: fixed; top: 90px; right: 40px; background: rgba(17,24,39,0.95); color: #fff; padding: 10px 14px; border-radius: 8px; box-shadow: 0 6px 18px rgba(15,23,42,0.25); z-index: 200 }
+
+/* active states */
+.action-btn.liked { color: #ef4444 } /* 红心 */
+.action-btn.favorited { color: #10b981 } /* 绿色收藏 */
+.post-actions .iconify { transition: color 0.15s }
 </style>
