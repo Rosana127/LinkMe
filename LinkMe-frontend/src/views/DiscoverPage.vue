@@ -80,11 +80,17 @@
     <div v-if="loading" class="loading-message">加载中...</div>
     <div v-if="error && !loading" class="error-message">{{ error }}</div>
     
-    <!-- 动态流 - 保持两列布局，确保有足够的顶部内边距避免被固定栏遮挡 -->
-    <div class="posts-grid">
-      <router-link v-for="post in filteredPosts" :key="post.id" :to="{ name: 'post', params: { id: post.id } }" class="post-card post-link">
+    <!-- 动态流 -->
+    <div v-if="!loading && !error" class="posts-grid">
+      <div v-if="filteredPosts.length === 0" class="empty-message">暂无帖子</div>
+      <router-link 
+        v-for="post in filteredPosts" 
+        :key="post.id" 
+        :to="{ name: 'post', params: { id: post.id } }" 
+        class="post-card post-link"
+      >
         <!-- 用户信息 -->
-        <div class="post-header" @click="openPost(post.id)">
+        <div class="post-header">
           <div class="user-info">
             <img 
               :src="post.author.avatar" 
@@ -103,13 +109,13 @@
         </div>
         
         <!-- 帖子内容 -->
-        <div class="post-content" @click="openPost(post.id)">
+        <div class="post-content">
           <p class="post-caption">{{ post.caption }}</p>
           <div class="hashtags">{{ post.hashtags }}</div>
         </div>
         
         <!-- 图片 -->
-        <div class="post-image" v-if="post.image" @click="openPost(post.id)">
+        <div class="post-image" v-if="post.image">
           <img 
             :src="post.image" 
             :alt="post.caption" 
@@ -119,20 +125,37 @@
         
         <!-- 互动按钮 -->
         <div class="post-actions">
-          <button :class="['action-btn', { liked: post.liked }]" @click.prevent.stop="toggleLike(post)">
-            <span class="iconify" :data-icon="post.liked ? 'mdi:heart' : 'mdi:heart-outline'" data-inline="false"></span>
+          <button 
+            :class="['action-btn', { liked: post.liked }]" 
+            @click.prevent.stop="toggleLike(post)"
+          >
+            <span 
+              class="iconify" 
+              :data-icon="post.liked ? 'mdi:heart' : 'mdi:heart-outline'" 
+              data-inline="false"
+            ></span>
             <span>{{ post.likes }}</span>
           </button>
-          <button :class="['action-btn', { favorited: post.favorited }]" @click.prevent.stop="openFolderModal(post)">
-            <span class="iconify" :data-icon="post.favorited ? 'mdi:bookmark' : 'mdi:bookmark-outline'" data-inline="false"></span>
+          <button 
+            :class="['action-btn', { favorited: post.favorited }]" 
+            @click.prevent.stop="openFolderModal(post)"
+          >
+            <span 
+              class="iconify" 
+              :data-icon="post.favorited ? 'mdi:bookmark' : 'mdi:bookmark-outline'" 
+              data-inline="false"
+            ></span>
             <span>{{ post.favorites || 0 }}</span>
           </button>
-          <button class="action-btn" @click.prevent.stop="openPost(post.id)">
+          <button 
+            class="action-btn" 
+            @click.prevent.stop="openPost(post.id)"
+          >
             <span class="iconify" data-icon="mdi:comment-outline" data-inline="false"></span>
             <span>{{ post.comments || 0 }}</span>
           </button>
         </div>
-      </div>
+      </router-link>
     </div>
   </div>
 </template>
@@ -147,19 +170,54 @@ import { getFavoriteFolders, createFavoriteFolder, addPostToFavorites } from '@/
 const authStore = useAuthStore()
 const isAuthenticated = computed(() => authStore.isAuthenticated)
 const currentUserId = computed(() => authStore.user?.userId)
+const router = useRouter()
 
-// 当前激活的分类
+// 状态变量
 const activeCategory = ref('recommended')
-// 搜索查询
 const searchQuery = ref('')
-
-// 全部帖子（从后端拉取）
 const allPosts = ref([])
-
-// 推荐与关注视图基于 allPosts 派生
 const recommendedPosts = ref([])
 const followingPosts = ref([])
+const loading = ref(false)
+const error = ref('')
 
+// 收藏夹相关
+const showFolderModal = ref(false)
+const showCreateFolder = ref(false)
+const currentFavoritePost = ref(null)
+const favoriteFolders = ref([])
+const newFolderName = ref('')
+
+// Toast
+const showToast = ref(false)
+const toastText = ref('')
+
+// 本地存储状态管理（localStorage）
+function getLocalLikeStatus(postId) {
+  if (!isAuthenticated.value) return false
+  const likes = JSON.parse(localStorage.getItem('userLikes') || '{}')
+  return likes[postId] || false
+}
+
+function setLocalLikeStatus(postId, status) {
+  const likes = JSON.parse(localStorage.getItem('userLikes') || '{}')
+  likes[postId] = status
+  localStorage.setItem('userLikes', JSON.stringify(likes))
+}
+
+function getLocalFavoriteStatus(postId) {
+  if (!isAuthenticated.value) return false
+  const favorites = JSON.parse(localStorage.getItem('userFavorites') || '{}')
+  return favorites[postId] || false
+}
+
+function setLocalFavoriteStatus(postId, status) {
+  const favorites = JSON.parse(localStorage.getItem('userFavorites') || '{}')
+  favorites[postId] = status
+  localStorage.setItem('userFavorites', JSON.stringify(favorites))
+}
+
+// 数据映射
 function mapBackendToView(raw) {
   const author = raw.user || raw.author || raw.creator || {}
   const images = Array.isArray(raw.images) ? raw.images : (raw.images ? [raw.images] : [])
@@ -178,7 +236,6 @@ function mapBackendToView(raw) {
     caption: raw.topic || raw.title || raw.content || raw.caption || '',
     hashtags: Array.isArray(raw.tags) ? raw.tags.join(' ') : (raw.tags || ''),
     image: firstImage,
-    // 使用后端返回的真实统计数据
     likes: raw.likeCount ?? raw.likes ?? 0,
     liked: isAuthenticated.value ? getLocalLikeStatus(postId) : false,
     favorites: raw.favoriteCount ?? raw.favorites ?? raw.bookmarks ?? 0,
@@ -187,6 +244,7 @@ function mapBackendToView(raw) {
   }
 }
 
+// 加载帖子
 async function loadExplore() {
   loading.value = true
   error.value = ''
@@ -198,10 +256,8 @@ async function loadExplore() {
     followingPosts.value = allPosts.value.filter(p => p.author && p.author.isFollowed)
   } catch (e) {
     console.error('加载探索帖子失败', e)
-    // 如果是401错误且未登录，这是正常的，不显示错误
-    // 其他错误可能是网络问题或服务器错误
     if (e.message && !e.message.includes('401') && !e.message.includes('未授权')) {
-      console.warn('获取帖子列表失败，可能是网络问题或服务器错误')
+      error.value = '加载失败，请稍后重试'
     }
     allPosts.value = []
     recommendedPosts.value = []
@@ -211,7 +267,7 @@ async function loadExplore() {
   }
 }
 
-// 加载收藏夹列表
+// 加载收藏夹
 async function loadFavoriteFolders() {
   if (!isAuthenticated.value || !currentUserId.value) return
   
@@ -225,12 +281,11 @@ async function loadFavoriteFolders() {
   }
 }
 
-const router = useRouter()
+// 导航相关
 function openPost(id) {
   router.push({ name: 'post', params: { id } })
 }
 
-// 处理关注按钮点击
 function handleFollowingClick() {
   if (!isAuthenticated.value) {
     router.push('/login')
@@ -239,14 +294,7 @@ function handleFollowingClick() {
   }
 }
 
-// 监听登录状态变化
-watch(isAuthenticated, (newVal) => {
-  if (!newVal) {
-    activeCategory.value = 'recommended'
-  }
-})
-
-// 根据当前分类和搜索词过滤帖子
+// 过滤帖子
 const filteredPosts = computed(() => {
   const category = (!isAuthenticated.value || activeCategory.value === 'recommended') ? 'recommended' : 'following'
   let posts = category === 'recommended' ? recommendedPosts.value : followingPosts.value
@@ -263,17 +311,7 @@ const filteredPosts = computed(() => {
   return posts
 })
 
-onMounted(() => {
-  loadExplore()
-  if (isAuthenticated.value) {
-    loadFavoriteFolders()
-  }
-})
-
-// toast
-const showToast = ref(false)
-const toastText = ref('')
-
+// Toast 提示
 function showToastMessage(message) {
   toastText.value = message
   showToast.value = true
@@ -296,37 +334,29 @@ async function toggleLike(post) {
 
   try {
     if (post.liked) {
-      // 乐观更新：先更新UI
       post.liked = false
       post.likes = Math.max(0, post.likes - 1)
-      
-      // 取消点赞
       await unlikePost(post.id, currentUserId.value)
       setLocalLikeStatus(post.id, false)
       showToastMessage('已取消点赞')
     } else {
-      // 乐观更新：先更新UI
       post.liked = true
       post.likes = (post.likes || 0) + 1
-      
-      // 点赞
       await likePost(post.id, currentUserId.value)
       setLocalLikeStatus(post.id, true)
       showToastMessage('点赞成功')
     }
     
-    // 成功后重新加载该帖子的数据以同步真实点赞数
     await refreshPostData(post.id)
   } catch (error) {
     console.error('点赞操作失败', error)
-    // 回滚状态
     post.liked = wasLiked
     post.likes = wasLikeCount
     showToastMessage('操作失败，请重试')
   }
 }
 
-// 刷新单个帖子的数据
+// 刷新帖子数据
 async function refreshPostData(postId) {
   try {
     const res = await getPosts()
@@ -334,13 +364,11 @@ async function refreshPostData(postId) {
     const updatedPost = arr.find(p => (p.postId ?? p.id ?? p._id) === postId)
     
     if (updatedPost) {
-      // 更新 allPosts 中的数据
       const index = allPosts.value.findIndex(p => p.id === postId)
       if (index !== -1) {
         const newPostData = mapBackendToView(updatedPost)
         allPosts.value[index] = newPostData
         
-        // 同步更新 recommendedPosts 和 followingPosts
         const recIndex = recommendedPosts.value.findIndex(p => p.id === postId)
         if (recIndex !== -1) {
           recommendedPosts.value[recIndex] = newPostData
@@ -357,7 +385,7 @@ async function refreshPostData(postId) {
   }
 }
 
-// 打开收藏夹选择弹窗
+// 收藏夹功能
 async function openFolderModal(post) {
   if (!isAuthenticated.value) {
     showToastMessage('请先登录')
@@ -370,13 +398,11 @@ async function openFolderModal(post) {
   showFolderModal.value = true
 }
 
-// 关闭收藏夹弹窗
 function closeFolderModal() {
   showFolderModal.value = false
   currentFavoritePost.value = null
 }
 
-// 保存到收藏夹
 async function saveToFolder(folderId) {
   if (!currentFavoritePost.value) return
   
@@ -389,8 +415,6 @@ async function saveToFolder(folderId) {
     setLocalFavoriteStatus(postId, true)
     showToastMessage('收藏成功')
     closeFolderModal()
-    
-    // 重新加载该帖子的数据以同步真实收藏数
     await refreshPostData(postId)
   } catch (error) {
     console.error('收藏失败', error)
@@ -398,7 +422,6 @@ async function saveToFolder(folderId) {
   }
 }
 
-// 创建新收藏夹
 async function createNewFolder() {
   if (!newFolderName.value.trim()) {
     showToastMessage('请输入收藏夹名称')
@@ -414,7 +437,6 @@ async function createNewFolder() {
       newFolderName.value = ''
       showCreateFolder.value = false
       
-      // 自动收藏到新创建的收藏夹
       if (currentFavoritePost.value) {
         await saveToFolder(folder.folderId)
       }
@@ -424,6 +446,21 @@ async function createNewFolder() {
     showToastMessage('创建失败，请重试')
   }
 }
+
+// 监听登录状态
+watch(isAuthenticated, (newVal) => {
+  if (!newVal) {
+    activeCategory.value = 'recommended'
+  }
+})
+
+// 初始化
+onMounted(() => {
+  loadExplore()
+  if (isAuthenticated.value) {
+    loadFavoriteFolders()
+  }
+})
 </script>
 
 <style scoped>
@@ -564,7 +601,7 @@ async function createNewFolder() {
   background: #e0e0e0;
 }
 
-/* 分类和搜索区域 */
+/* 固定头部 */
 .category-search-container {
   position: fixed;
   top: 0;
@@ -636,37 +673,29 @@ async function createNewFolder() {
   cursor: pointer;
 }
 
-/* 帖子网格布局 */
+/* 帖子网格 */
 .posts-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
   gap: 20px;
-  margin-top: 30px;
+  margin-top: 100px;
+  padding-bottom: 40px;
 }
 
 .post-card {
   background-color: #ffffff;
   border-radius: 12px;
   padding: 20px;
-  transition: background-color 0.2s;
+  transition: all 0.2s;
   border: 1px solid #e0e0e0;
+  text-decoration: none;
+  color: inherit;
+  display: block;
 }
 
 .post-card:hover {
   background-color: #f9f9f9;
   box-shadow: 0 4px 8px rgba(0, 0, 0, 0.05);
-}
-
-.post-header,
-.post-content,
-.post-image {
-  cursor: pointer;
-}
-
-.post-header:hover,
-.post-content:hover,
-.post-image:hover {
-  opacity: 0.95;
 }
 
 .post-header {
@@ -776,10 +805,29 @@ async function createNewFolder() {
   color: #10b981;
 }
 
-.toast { position: fixed; top: 90px; right: 40px; background: rgba(17,24,39,0.95); color: #fff; padding: 10px 14px; border-radius: 8px; box-shadow: 0 6px 18px rgba(15,23,42,0.25); z-index: 200 }
+.toast {
+  position: fixed;
+  top: 90px;
+  right: 40px;
+  background: rgba(17, 24, 39, 0.95);
+  color: #fff;
+  padding: 12px 20px;
+  border-radius: 8px;
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.25);
+  z-index: 200;
+}
 
-/* active states */
-.action-btn.liked { color: #ef4444 } /* 红心 */
-.action-btn.favorited { color: #10b981 } /* 绿色收藏 */
-.post-actions .iconify { transition: color 0.15s }
+.loading-message,
+.error-message,
+.empty-message {
+  text-align: center;
+  padding: 60px 20px;
+  color: #666;
+  font-size: 16px;
+  margin-top: 100px;
+}
+
+.error-message {
+  color: #ef4444;
+}
 </style>
