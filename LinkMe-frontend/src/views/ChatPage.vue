@@ -25,8 +25,19 @@
         
         <!-- 搜索框 -->
         <div class="p-4 border-b border-gray-700">
-          <h3 class="font-bold text-white">{{ activeTab === 'messages' ? '消息中心' : '通知中心' }}</h3>
-          <div class="relative mt-3">
+          <div class="flex justify-between items-center mb-3">
+            <h3 class="font-bold text-white">{{ activeTab === 'messages' ? '消息中心' : '通知中心' }}</h3>
+            <!-- 标记所有通知为已读按钮 -->
+            <button 
+              v-if="activeTab === 'notifications' && unreadNotificationsCount > 0"
+              @click="markAllAsRead"
+              class="px-3 py-1 text-xs bg-purple-600 text-white rounded hover:bg-purple-700 transition-colors flex items-center"
+            >
+              <span class="iconify mr-1" data-icon="mdi:check-all" data-inline="false"></span>
+              全部已读
+            </button>
+          </div>
+          <div class="relative">
             <input 
               type="text" 
               :placeholder="activeTab === 'messages' ? '搜索聊天...' : '搜索通知...'" 
@@ -70,7 +81,7 @@
                 <div class="flex items-center">
                   <p class="text-xs text-gray-400 truncate flex-1 mr-2">{{ chat.lastMessage }}</p>
                   <span 
-                    v-if="chat.unreadCount > 0" 
+                    v-if="chat.unreadCount && chat.unreadCount > 0" 
                     class="w-2 h-2 rounded-full bg-purple-500 flex-shrink-0"
                   ></span>
                 </div>
@@ -130,9 +141,56 @@
             <button class="p-2 rounded-full hover:bg-gray-800 transition-colors">
               <span class="iconify text-xl text-gray-400" data-icon="mdi:phone" data-inline="false"></span>
             </button>
-            <button class="p-2 rounded-full hover:bg-gray-800 transition-colors">
-              <span class="iconify text-xl text-gray-400" data-icon="mdi:dots-vertical" data-inline="false"></span>
-            </button>
+            <div class="relative">
+              <button 
+                @click.stop="showOptionsMenu = !showOptionsMenu"
+                class="p-2 rounded-full hover:bg-gray-800 transition-colors"
+              >
+                <span class="iconify text-xl text-gray-400" data-icon="mdi:dots-vertical" data-inline="false"></span>
+              </button>
+              <!-- 下拉菜单 -->
+              <div 
+                v-if="showOptionsMenu" 
+                class="absolute right-0 mt-2 w-48 bg-gray-800 rounded-lg shadow-lg border border-gray-700 z-50"
+                @click.stop
+              >
+                <button 
+                  @click="toggleFollow"
+                  class="w-full text-left px-4 py-3 hover:bg-gray-700 transition-colors text-white text-sm flex items-center"
+                >
+                  <span class="iconify mr-2" :data-icon="isFollowing ? 'mdi:account-minus' : 'mdi:account-plus'" data-inline="false"></span>
+                  {{ isFollowing ? '取消关注' : '关注' }}
+                </button>
+                <button 
+                  @click="toggleMute"
+                  class="w-full text-left px-4 py-3 hover:bg-gray-700 transition-colors text-white text-sm flex items-center"
+                >
+                  <span class="iconify mr-2" data-icon="mdi:bell-off" data-inline="false"></span>
+                  消息免打扰
+                </button>
+                <button 
+                  @click="togglePin"
+                  class="w-full text-left px-4 py-3 hover:bg-gray-700 transition-colors text-white text-sm flex items-center"
+                >
+                  <span class="iconify mr-2" data-icon="mdi:pin" data-inline="false"></span>
+                  置顶聊天
+                </button>
+                <button 
+                  @click="blockMessages"
+                  class="w-full text-left px-4 py-3 hover:bg-gray-700 transition-colors text-white text-sm flex items-center"
+                >
+                  <span class="iconify mr-2" data-icon="mdi:block-helper" data-inline="false"></span>
+                  屏蔽消息
+                </button>
+                <button 
+                  @click="clearChatHistory"
+                  class="w-full text-left px-4 py-3 hover:bg-gray-700 transition-colors text-red-400 text-sm flex items-center rounded-b-lg"
+                >
+                  <span class="iconify mr-2" data-icon="mdi:delete-sweep" data-inline="false"></span>
+                  清空聊天记录
+                </button>
+              </div>
+            </div>
           </div>
         </div>
         
@@ -220,9 +278,10 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, nextTick, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import * as chatApi from '@/api/chat'
+import * as userApi from '@/api/user'
 
 const authStore = useAuthStore()
 const searchQuery = ref('')
@@ -230,6 +289,8 @@ const selectedChatId = ref(null)
 const newMessage = ref('')
 const activeTab = ref('messages') // 'messages' 或 'notifications'
 const messagesContainer = ref(null)
+const showOptionsMenu = ref(false) // 控制下拉菜单显示
+const isFollowing = ref(false) // 当前是否已关注对方
 
 // 会话列表（从后端拉取）
 const chats = ref([])
@@ -377,6 +438,8 @@ async function loadConversations() {
     if (!selectedChatId.value && chats.value.length) {
       selectedChatId.value = chats.value[0].id
       await loadMessages(selectedChatId.value)
+      // 检查关注状态
+      await checkFollowStatus()
     }
   } catch (e) {
     console.error('加载会话失败', e)
@@ -419,6 +482,33 @@ async function loadMessages(conversationId) {
 const selectChat = async (chatId) => {
   selectedChatId.value = chatId
   await loadMessages(chatId)
+  
+  // Mark messages as read when opening a chat
+  try {
+    await chatApi.markRead(chatId)
+    // Update the unreadCount for this chat in the local state
+    const idx = chats.value.findIndex(c => c.id === chatId)
+    if (idx >= 0) {
+      chats.value[idx].unreadCount = 0
+    }
+  } catch (e) {
+    console.error('标记消息为已读失败', e)
+  }
+  
+  // 检查是否关注对方
+  await checkFollowStatus()
+}
+
+// 检查关注状态
+const checkFollowStatus = async () => {
+  if (!selectedChat.value?.otherId) return
+  try {
+    const res = await userApi.checkFollowing(selectedChat.value.otherId)
+    isFollowing.value = res?.data?.isFollowing || res?.isFollowing || false
+  } catch (e) {
+    console.error('检查关注状态失败', e)
+    isFollowing.value = false
+  }
 }
 
 
@@ -451,6 +541,65 @@ const sendMessage = async () => {
 
 const useAISuggestion = () => { newMessage.value = '我很乐意！周六见。' }
 
+// 切换关注状态
+const toggleFollow = async () => {
+  if (!selectedChat.value?.otherId) return
+  try {
+    if (isFollowing.value) {
+      await userApi.unfollowUser(selectedChat.value.otherId)
+      isFollowing.value = false
+      console.log('取消关注成功')
+    } else {
+      await userApi.followUser(selectedChat.value.otherId)
+      isFollowing.value = true
+      console.log('关注成功')
+    }
+    showOptionsMenu.value = false
+  } catch (e) {
+    console.error('关注操作失败', e)
+  }
+}
+
+// 消息免打扰
+const toggleMute = () => {
+  console.log('切换消息免打扰状态')
+  // TODO: 实现消息免打扰功能
+  showOptionsMenu.value = false
+}
+
+// 置顶聊天
+const togglePin = () => {
+  console.log('切换置顶状态')
+  // TODO: 实现置顶聊天功能
+  showOptionsMenu.value = false
+}
+
+// 屏蔽消息
+const blockMessages = () => {
+  if (confirm('确定要屏蔽此用户的消息吗？')) {
+    console.log('屏蔽消息')
+    // TODO: 实现屏蔽消息功能
+    showOptionsMenu.value = false
+  }
+}
+
+// 清空聊天记录
+const clearChatHistory = () => {
+  if (confirm('确定要清空此聊天的所有记录吗？此操作不可恢复！')) {
+    if (selectedChat.value) {
+      selectedChat.value.messages = []
+      console.log('清空聊天记录')
+      // TODO: 调用后端API清空聊天记录
+    }
+    showOptionsMenu.value = false
+  }
+}
+
+// 点击页面其他地方关闭下拉菜单
+const closeOptionsMenu = () => {
+  showOptionsMenu.value = false
+}
+
 const scrollToBottom = () => {
   if (messagesContainer.value) messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight
 }
@@ -460,6 +609,13 @@ watch(selectedChatId, () => { nextTick(() => scrollToBottom()) })
 onMounted(() => {
   loadConversations()
   loadNotifications()
+  // 点击页面其他地方关闭下拉菜单
+  document.addEventListener('click', closeOptionsMenu)
+})
+
+// 组件卸载时移除事件监听
+onUnmounted(() => {
+  document.removeEventListener('click', closeOptionsMenu)
 })
 </script>
 
