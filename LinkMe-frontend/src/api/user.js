@@ -144,6 +144,42 @@ export function checkFollowing(userId) {
 }
 
 /**
+ * 屏蔽用户
+ * @param {Number} userId 要屏蔽的用户ID
+ * @returns {Promise}
+ */
+export function blockUser(userId) {
+  return request({
+    url: `/user/block/${userId}`,
+    method: 'post'
+  })
+}
+
+/**
+ * 取消屏蔽用户
+ * @param {Number} userId 要取消屏蔽的用户ID
+ * @returns {Promise}
+ */
+export function unblockUser(userId) {
+  return request({
+    url: `/user/unblock/${userId}`,
+    method: 'delete'
+  })
+}
+
+/**
+ * 检查是否屏蔽某用户
+ * @param {Number} userId 用户ID
+ * @returns {Promise}
+ */
+export function checkBlocking(userId) {
+  return request({
+    url: `/user/block/${userId}/check`,
+    method: 'get'
+  })
+}
+
+/**
  * 更新当前登录用户信息（使用 /users/me 端点）
  * @param {Object} userData 用户数据
  * @returns {Promise}

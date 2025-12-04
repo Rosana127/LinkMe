@@ -80,10 +80,14 @@
                 </div>
                 <div class="flex items-center">
                   <p class="text-xs text-gray-400 truncate flex-1 mr-2">{{ chat.lastMessage }}</p>
+                  <!-- 未读消息显示：免打扰时显示圆点，否则显示数字 -->
                   <span 
                     v-if="chat.unreadCount && chat.unreadCount > 0" 
-                    class="w-2 h-2 rounded-full bg-purple-500 flex-shrink-0"
-                  ></span>
+                    :class="chat.isMuted ? 'w-2 h-2 rounded-full bg-purple-500' : 'px-2 py-0.5 bg-purple-500 text-xs rounded-full text-white'"
+                    class="flex-shrink-0"
+                  >
+                    {{ chat.isMuted ? '' : chat.unreadCount }}
+                  </span>
                 </div>
               </div>
             </div>
@@ -165,22 +169,22 @@
                   @click="toggleMute"
                   class="w-full text-left px-4 py-3 hover:bg-gray-700 transition-colors text-white text-sm flex items-center"
                 >
-                  <span class="iconify mr-2" data-icon="mdi:bell-off" data-inline="false"></span>
-                  消息免打扰
+                  <span class="iconify mr-2" :data-icon="selectedChat?.isMuted ? 'mdi:bell' : 'mdi:bell-off'" data-inline="false"></span>
+                  {{ selectedChat?.isMuted ? '取消免打扰' : '消息免打扰' }}
                 </button>
                 <button 
                   @click="togglePin"
                   class="w-full text-left px-4 py-3 hover:bg-gray-700 transition-colors text-white text-sm flex items-center"
                 >
-                  <span class="iconify mr-2" data-icon="mdi:pin" data-inline="false"></span>
-                  置顶聊天
+                  <span class="iconify mr-2" :data-icon="selectedChat?.isPinned ? 'mdi:pin-off' : 'mdi:pin'" data-inline="false"></span>
+                  {{ selectedChat?.isPinned ? '取消置顶' : '置顶聊天' }}
                 </button>
                 <button 
                   @click="blockMessages"
                   class="w-full text-left px-4 py-3 hover:bg-gray-700 transition-colors text-white text-sm flex items-center"
                 >
-                  <span class="iconify mr-2" data-icon="mdi:block-helper" data-inline="false"></span>
-                  屏蔽消息
+                  <span class="iconify mr-2" :data-icon="isBlocking ? 'mdi:account-check' : 'mdi:block-helper'" data-inline="false"></span>
+                  {{ isBlocking ? '取消屏蔽' : '屏蔽消息' }}
                 </button>
                 <button 
                   @click="clearChatHistory"
@@ -291,6 +295,7 @@ const activeTab = ref('messages') // 'messages' 或 'notifications'
 const messagesContainer = ref(null)
 const showOptionsMenu = ref(false) // 控制下拉菜单显示
 const isFollowing = ref(false) // 当前是否已关注对方
+const isBlocking = ref(false) // 当前是否已屏蔽对方
 
 // 会话列表（从后端拉取）
 const chats = ref([])
@@ -406,7 +411,9 @@ function mapConversationToChat(conv) {
     lastMessageTime,
     unreadCount: conv.unreadCount ?? conv.unread_count ?? 0,
     messages: [],
-    otherId
+    otherId,
+    isMuted: conv.isMuted ?? false,
+    isPinned: conv.isPinned ?? false
   }
 }
 
@@ -441,6 +448,8 @@ async function loadConversations() {
       // 检查关注状态
       await checkFollowStatus()
     }
+    // 排序：置顶的在前
+    sortChats()
   } catch (e) {
     console.error('加载会话失败', e)
     chats.value = []
@@ -505,9 +514,14 @@ const checkFollowStatus = async () => {
   try {
     const res = await userApi.checkFollowing(selectedChat.value.otherId)
     isFollowing.value = res?.data?.isFollowing || res?.isFollowing || false
+    
+    // 同时检查屏蔽状态
+    const blockRes = await userApi.checkBlocking(selectedChat.value.otherId)
+    isBlocking.value = blockRes?.data?.isBlocking || blockRes?.isBlocking || false
   } catch (e) {
-    console.error('检查关注状态失败', e)
+    console.error('检查关注/屏蔽状态失败', e)
     isFollowing.value = false
+    isBlocking.value = false
   }
 }
 
@@ -561,35 +575,102 @@ const toggleFollow = async () => {
 }
 
 // 消息免打扰
-const toggleMute = () => {
-  console.log('切换消息免打扰状态')
-  // TODO: 实现消息免打扰功能
-  showOptionsMenu.value = false
+const toggleMute = async () => {
+  if (!selectedChat.value) return
+  try {
+    const newMutedStatus = !selectedChat.value.isMuted
+    await chatApi.setMuteStatus(selectedChat.value.id, newMutedStatus)
+    // 更新本地状态
+    selectedChat.value.isMuted = newMutedStatus
+    const chatInList = chats.value.find(c => c.id === selectedChat.value.id)
+    if (chatInList) {
+      chatInList.isMuted = newMutedStatus
+    }
+    showOptionsMenu.value = false
+  } catch (e) {
+    console.error('设置免打扰失败', e)
+  }
 }
 
 // 置顶聊天
-const togglePin = () => {
-  console.log('切换置顶状态')
-  // TODO: 实现置顶聊天功能
-  showOptionsMenu.value = false
+const togglePin = async () => {
+  if (!selectedChat.value) return
+  try {
+    const newPinnedStatus = !selectedChat.value.isPinned
+    await chatApi.setPinStatus(selectedChat.value.id, newPinnedStatus)
+    // 更新本地状态
+    selectedChat.value.isPinned = newPinnedStatus
+    const chatInList = chats.value.find(c => c.id === selectedChat.value.id)
+    if (chatInList) {
+      chatInList.isPinned = newPinnedStatus
+    }
+    // 重新排序聊天列表：置顶的在前
+    sortChats()
+    showOptionsMenu.value = false
+  } catch (e) {
+    console.error('设置置顶失败', e)
+  }
+}
+
+// 排序聊天列表：置顶的排在最前面
+const sortChats = () => {
+  chats.value.sort((a, b) => {
+    // 置顶的在前
+    if (a.isPinned && !b.isPinned) return -1
+    if (!a.isPinned && b.isPinned) return 1
+    // 都置顶或都不置顶时，保持原有顺序
+    return 0
+  })
 }
 
 // 屏蔽消息
-const blockMessages = () => {
-  if (confirm('确定要屏蔽此用户的消息吗？')) {
-    console.log('屏蔽消息')
-    // TODO: 实现屏蔽消息功能
-    showOptionsMenu.value = false
+const blockMessages = async () => {
+  if (!selectedChat.value?.otherId) return
+  
+  const action = isBlocking.value ? '取消屏蔽' : '屏蔽'
+  const confirmMsg = isBlocking.value 
+    ? '确定要取消屏蔽此用户吗？' 
+    : '确定要屏蔽此用户的消息吗？'
+  
+  if (confirm(confirmMsg)) {
+    try {
+      if (isBlocking.value) {
+        await userApi.unblockUser(selectedChat.value.otherId)
+        isBlocking.value = false
+      } else {
+        await userApi.blockUser(selectedChat.value.otherId)
+        isBlocking.value = true
+      }
+      showOptionsMenu.value = false
+    } catch (e) {
+      console.error(`${action}失败`, e)
+    }
   }
 }
 
 // 清空聊天记录
-const clearChatHistory = () => {
+const clearChatHistory = async () => {
   if (confirm('确定要清空此聊天的所有记录吗？此操作不可恢复！')) {
     if (selectedChat.value) {
-      selectedChat.value.messages = []
-      console.log('清空聊天记录')
-      // TODO: 调用后端API清空聊天记录
+      try {
+        await chatApi.clearChatMessages(selectedChat.value.id)
+        // 清空成功后，清空前端显示的消息列表和最后一条消息
+        selectedChat.value.messages = []
+        selectedChat.value.lastMessage = ''
+        selectedChat.value.lastMessageTime = null
+        
+        // 同时更新会话列表中的对应项
+        const chatIndex = chats.value.findIndex(c => c.id === selectedChat.value.id)
+        if (chatIndex !== -1) {
+          chats.value[chatIndex].lastMessage = ''
+          chats.value[chatIndex].lastMessageTime = null
+        }
+        
+        console.log('聊天记录已清空')
+      } catch (error) {
+        console.error('清空聊天记录失败:', error)
+        alert('清空聊天记录失败，请重试')
+      }
     }
     showOptionsMenu.value = false
   }

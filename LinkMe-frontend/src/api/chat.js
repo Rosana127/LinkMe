@@ -46,6 +46,21 @@ export function deleteNotification(notificationId) {
     return request({ url: `/notifications/${notificationId}`, method: 'delete' })
 }
 
+// 设置会话置顶状态
+export function setPinStatus(conversationId, pinned) {
+    return request({ url: `/conversations/${conversationId}/pin`, method: 'put', data: { pinned } })
+}
+
+// 设置会话免打扰状态
+export function setMuteStatus(conversationId, muted) {
+    return request({ url: `/conversations/${conversationId}/mute`, method: 'put', data: { muted } })
+}
+
+// 清空聊天记录
+export function clearChatMessages(conversationId) {
+    return request({ url: `/conversations/${conversationId}/messages`, method: 'delete' })
+}
+
 const chatApi = {
     getConversations,
     getConversation,
@@ -57,7 +72,10 @@ const chatApi = {
     getUnreadNotificationCount,
     markNotificationRead,
     markAllNotificationsRead,
-    deleteNotification
+    deleteNotification,
+    setPinStatus,
+    setMuteStatus,
+    clearChatMessages
 }
 
 export default chatApi
