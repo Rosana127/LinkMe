@@ -459,11 +459,14 @@ async function loadConversations() {
 async function loadMessages(conversationId) {
   if (!conversationId) return
   try {
+    console.log('开始加载消息，会话ID:', conversationId)
     const res = await chatApi.getMessages(conversationId)
+    console.log('从后端获取的原始消息数据:', res)
     let arr
     if (Array.isArray(res)) arr = res
     else if (res && Array.isArray(res.data)) arr = res.data
     else arr = []
+    console.log('提取的消息数组:', arr)
     // map to message objects used in模板
     const msgs = arr.map(m => ({
       id: m.messageId ?? m.message_id ?? m.id,
@@ -473,14 +476,18 @@ async function loadMessages(conversationId) {
       senderNickname: m.senderNickname ?? m.sender_nickname,
       senderAvatar: m.senderAvatar ?? m.sender_avatar
     }))
+    console.log('映射后的消息数组:', msgs)
     const idx = chats.value.findIndex(c => c.id === conversationId)
+    console.log('找到的会话索引:', idx)
     if (idx >= 0) {
       chats.value[idx].messages = msgs
       chats.value[idx].lastMessage = msgs.length ? msgs[msgs.length-1].content : chats.value[idx].lastMessage
       chats.value[idx].lastMessageTime = msgs.length ? msgs[msgs.length-1].time : chats.value[idx].lastMessageTime
+      console.log('更新后的会话消息:', chats.value[idx].messages)
     } else {
       // if conversation not present, push a minimal entry
       chats.value.push({ id: conversationId, name: `对话 ${conversationId}`, avatar: '', isOnline: false, lastMessage: '', lastMessageTime: '', unreadCount: 0, messages: msgs })
+      console.log('新添加的会话:', chats.value[chats.value.length-1])
     }
     nextTick(() => scrollToBottom())
   } catch (e) {
@@ -527,29 +534,64 @@ const checkFollowStatus = async () => {
 
 
 const sendMessage = async () => {
-  if (!newMessage.value.trim() || !selectedChat.value) return
-  const content = newMessage.value.trim()
-  const senderId = authStore.userId
-  const receiverId = selectedChat.value.otherId // 对方用户ID
-  const conversationId = selectedChat.value.id
-  const payload = {
-    senderId, // 当前用户ID
-    receiverId, // 对方用户ID
-    contentType: 'text', // 仅支持文本消息
-    content
+    if (!newMessage.value.trim() || !selectedChat.value) return
+    const content = newMessage.value.trim()
+    const receiverId = selectedChat.value.otherId // 对方用户ID
+    const conversationId = selectedChat.value.id
+    const payload = {
+      receiverId, // 对方用户ID
+      contentType: 'text', // 仅支持文本消息
+      content
+    }
+  
+  // 创建临时消息对象，立即显示在聊天界面
+  const tempMessage = {
+    id: Date.now(), // 使用时间戳作为临时ID
+    content: content,
+    time: formatTime(new Date()),
+    isFromUser: true,
+    senderNickname: authStore.nickname,
+    senderAvatar: authStore.avatarUrl
   }
+  
+  // 将临时消息添加到前端消息列表
+  const chatIdx = chats.value.findIndex(c => c.id === conversationId)
+  if (chatIdx >= 0) {
+    chats.value[chatIdx].messages.push(tempMessage)
+    chats.value[chatIdx].lastMessage = content
+    chats.value[chatIdx].lastMessageTime = tempMessage.time
+  }
+  
+  // 滚动到底部显示新消息
+  nextTick(() => scrollToBottom())
+  
+  // 清空输入框
+  newMessage.value = ''
+  
   try {
     // 发送消息到后端
     await chatApi.postMessage(conversationId, payload)
-    // 清空输入框
-    newMessage.value = ''
-    // 重新拉取消息列表，刷新 UI
+    // 重新拉取消息列表，确保数据与后端一致
     await loadMessages(conversationId)
     nextTick(() => scrollToBottom())
   } catch (e) {
     // 错误处理，提示用户
     window.$message?.error?.(e.message || '发送消息失败')
     console.error('发送消息失败', e)
+    
+    // 如果发送失败，从前端消息列表中移除临时消息
+    if (chatIdx >= 0) {
+      chats.value[chatIdx].messages = chats.value[chatIdx].messages.filter(m => m.id !== tempMessage.id)
+      // 更新最后一条消息和时间
+      if (chats.value[chatIdx].messages.length > 0) {
+        const lastMsg = chats.value[chatIdx].messages[chats.value[chatIdx].messages.length - 1]
+        chats.value[chatIdx].lastMessage = lastMsg.content
+        chats.value[chatIdx].lastMessageTime = lastMsg.time
+      } else {
+        chats.value[chatIdx].lastMessage = ''
+        chats.value[chatIdx].lastMessageTime = ''
+      }
+    }
   }
 }
 

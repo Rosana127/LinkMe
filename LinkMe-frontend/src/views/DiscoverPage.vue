@@ -229,7 +229,8 @@ function mapBackendToView(raw) {
     author: {
       avatar: raw.avatarUrl || author.avatar || author.photo || author.image || author.avatarUrl || 'https://via.placeholder.com/80',
       name: raw.nickname || author.nickname || raw.username || author.name || author.username || '匿名',
-      handle: raw.username || author.handle || author.username || (raw.nickname ? raw.nickname.replace(/\s+/g, '') : (author.nickname ? author.nickname.replace(/\s+/g, '') : ''))
+      handle: raw.username || author.handle || author.username || (raw.nickname ? raw.nickname.replace(/\s+/g, '') : (author.nickname ? author.nickname.replace(/\s+/g, '') : '')),
+      isFollowed: raw.isFollowed || false
     },
     time: raw.createdAt ? new Date(raw.createdAt).toLocaleString() : (raw.time || ''),
     location: raw.location || '',
