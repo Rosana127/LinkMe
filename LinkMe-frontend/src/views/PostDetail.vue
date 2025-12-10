@@ -8,7 +8,24 @@
     
     <div class="post-detail-card">
       <div class="post-header">
-        <img :src="post.author.avatar" class="user-avatar" />
+        <div class="user-avatar-container" @click="showUserMenu(post.author)">
+          <img :src="post.author.avatar" class="user-avatar" />
+          <!-- 用户操作菜单 -->
+          <div 
+            v-if="showingMenu && selectedUser && selectedUser.id === post.author.id" 
+            class="user-menu"
+            @click.stop
+          >
+            <div 
+              v-if="authStore.isLoggedIn" 
+              @click.stop="toggleFollow(post.author.id); hideUserMenu()" 
+              class="menu-item"
+            >
+              {{ isFollowing(post.author.id) ? '取消关注' : '关注' }}
+            </div>
+            <div @click.stop="goToUserDetail(post.author.id); hideUserMenu()" class="menu-item">查看详情</div>
+          </div>
+        </div>
         <div class="user-info">
           <div class="username">{{ post.author.name }}</div>
           <div class="user-handle">@{{ post.author.handle }}</div>
@@ -64,6 +81,9 @@
 
   <!-- 收藏成功提示 -->
   <div v-if="showFavToast" class="toast">{{ favorited.value ? '收藏成功' : '已取消收藏' }}</div>
+  
+  <!-- 关注/取消关注提示 -->
+  <div v-if="showFollowToast" class="toast">{{ followToastMessage }}</div>
 
       <div class="comments-section">
         <div class="add-comment">
@@ -88,10 +108,11 @@
 </template>
 
 <script setup>
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, onUnmounted, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { getPost, getComments, postComment } from '@/api/posts'
 import { useAuthStore } from '@/stores/auth'
+import { followUser, unfollowUser } from '@/api/user'
 
 const route = useRoute()
 const router = useRouter()
@@ -113,6 +134,15 @@ const liked = ref(false)
 const favorited = ref(false)
 const loading = ref(false)
 const error = ref('')
+
+// 用户菜单相关状态
+const showingMenu = ref(false)
+const selectedUser = ref(null)
+const followingMap = ref(new Map())
+
+// 关注/取消关注提示
+const showFollowToast = ref(false)
+const followToastMessage = ref('')
 
 const currentImageSrc = computed(() => {
   if (post.value.images && post.value.images.length) {
@@ -152,6 +182,59 @@ function toastMessage(text) {
   const t = document.createElement('div')
   // 不操作 DOM here — use reactive template showFavToast + message instead
   setTimeout(() => { showFavToast.value = false }, 1200)
+}
+
+// 用户菜单相关函数
+function showUserMenu(user) {
+  selectedUser.value = user
+  showingMenu.value = true
+}
+
+function hideUserMenu() {
+  showingMenu.value = false
+  selectedUser.value = null
+}
+
+function goToUserDetail(userId) {
+  router.push({ name: 'user', params: { id: userId } })
+}
+
+// 点击页面其他地方关闭菜单
+const handleClickOutside = (e) => {
+  if (showingMenu.value && !e.target.closest('.user-avatar-container') && !e.target.closest('.user-menu')) {
+    hideUserMenu()
+  }
+}
+
+document.addEventListener('click', handleClickOutside)
+
+// 组件卸载时移除事件监听器
+onUnmounted(() => {
+  document.removeEventListener('click', handleClickOutside)
+})
+
+function isFollowing(userId) {
+  return followingMap.value.get(userId) || false
+}
+
+async function toggleFollow(userId) {
+  if (!authStore.isLoggedIn) return
+  
+  try {
+    if (isFollowing(userId)) {
+      await unfollowUser(userId)
+      followingMap.value.set(userId, false)
+      followToastMessage.value = '已取消关注'
+    } else {
+      await followUser(userId)
+      followingMap.value.set(userId, true)
+      followToastMessage.value = '关注成功'
+    }
+    showFollowToast.value = true
+    setTimeout(() => { showFollowToast.value = false }, 1500)
+  } catch (error) {
+    console.error('关注/取消关注失败:', error)
+  }
 }
 
 function addComment() {
@@ -204,6 +287,7 @@ async function loadPost() {
     post.value = {
       id: data.id ?? data._id ?? data.postId,
       author: {
+        id: data.userId ?? author.id ?? author.userId ?? author.user_id ?? data.user_id ?? null,
         avatar: data.avatarUrl || author.avatar || author.photo || author.image || author.avatarUrl || 'https://via.placeholder.com/80',
         name: data.nickname || author.nickname || data.username || author.name || author.username || '匿名',
         handle: data.username || author.handle || author.username || (data.nickname ? data.nickname.replace(/\s+/g, '') : (author.nickname ? author.nickname.replace(/\s+/g, '') : ''))
@@ -214,7 +298,7 @@ async function loadPost() {
       hashtags: Array.isArray(data.tags) ? data.tags.join(' ') : (data.tags || ''),
       image: firstImage,
       likes: data.likes ?? data.likeCount ?? 0,
-      favorites: data.favorites ?? data.bookmarks ?? 0,
+      favorites: data.favorites ?? data.favoriteCount ?? data.bookmarks ?? 0,
       images: normalizedImages
     }
     currentImageIndex.value = 0
@@ -343,6 +427,51 @@ onMounted(() => {
 .post-detail-card { background:#fff; padding:20px; border-radius:10px; box-shadow:0 4px 12px rgba(0,0,0,0.05) }
 .post-header { display:flex; align-items:center; gap:12px }
 .user-avatar { width:48px; height:48px; border-radius:50%; object-fit:cover }
+.user-avatar-container {
+  position: relative;
+  cursor: pointer;
+}
+.user-menu {
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  z-index: 100;
+  min-width: 120px;
+  margin-top: 8px;
+}
+.user-menu::before {
+  content: '';
+  position: absolute;
+  top: -8px;
+  left: 50%;
+  transform: translateX(-50%);
+  border-width: 0 8px 8px 8px;
+  border-style: solid;
+  border-color: transparent transparent #fff transparent;
+  z-index: -1;
+}
+.menu-item {
+  padding: 8px 16px;
+  text-align: center;
+  cursor: pointer;
+  font-size: 14px;
+  color: #374151;
+  transition: background-color 0.2s;
+}
+.menu-item:first-child {
+  border-radius: 8px 8px 0 0;
+}
+.menu-item:last-child {
+  border-radius: 0 0 8px 8px;
+}
+.menu-item:hover {
+  background-color: #f3f4f6;
+}
 .user-info .username { font-weight:700 }
 .post-body { margin-top:12px }
 .post-image {

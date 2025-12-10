@@ -128,6 +128,42 @@ export function unfollowUser(userId) {
 }
 
 /**
+ * 获取用户关注者列表
+ * @param {Number} userId 用户ID
+ * @param {Number} offset 偏移量
+ * @param {Number} limit 限制数量
+ * @returns {Promise}
+ */
+export function getFollowers(userId, offset = 0, limit = 10) {
+  return request({
+    url: `/user/${userId}/followers`,
+    method: 'get',
+    params: {
+      offset,
+      limit
+    }
+  })
+}
+
+/**
+ * 获取用户关注列表
+ * @param {Number} userId 用户ID
+ * @param {Number} offset 偏移量
+ * @param {Number} limit 限制数量
+ * @returns {Promise}
+ */
+export function getFollowing(userId, offset = 0, limit = 10) {
+  return request({
+    url: `/user/${userId}/followings`,
+    method: 'get',
+    params: {
+      offset,
+      limit
+    }
+  })
+}
+
+/**
  * 检查是否关注某用户
  * @param {Number} userId 用户ID
  * @returns {Promise}
@@ -140,6 +176,22 @@ export function checkFollowing(userId) {
     // 如果后端API不存在，返回模拟响应
     console.warn('检查关注状态API未实现，使用模拟响应')
     return Promise.resolve({ code: 200, data: { isFollowing: false } })
+  })
+}
+
+/**
+ * 获取用户统计数据
+ * @param {Number} userId 用户ID
+ * @returns {Promise}
+ */
+export function getUserStats(userId) {
+  return request({
+    url: `/user/${userId}/stats`,
+    method: 'get'
+  }).catch(err => {
+    // 如果后端API不存在，返回模拟响应
+    console.warn('获取用户统计数据API未实现，使用模拟响应')
+    return Promise.resolve({ code: 200, data: { posts: 0, likes: 0, followers: 0, following: 0 } })
   })
 }
 

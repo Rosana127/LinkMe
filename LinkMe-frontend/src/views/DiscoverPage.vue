@@ -92,11 +92,14 @@
         <!-- 用户信息 -->
         <div class="post-header">
           <div class="user-info">
-            <img 
-              :src="post.author.avatar" 
-              :alt="post.author.name" 
-              class="user-avatar"
-            >
+            <!-- 用户头像 -->
+            <div class="user-avatar-container">
+              <img 
+                :src="post.author.avatar" 
+                :alt="post.author.name" 
+                class="user-avatar"
+              >
+            </div>
             <div class="user-details">
               <div class="username">{{ post.author.name }}</div>
               <div class="user-handle">@{{ post.author.handle }}</div>
@@ -134,7 +137,7 @@
               :data-icon="post.liked ? 'mdi:heart' : 'mdi:heart-outline'" 
               data-inline="false"
             ></span>
-            <span>{{ post.likes }}</span>
+            <span>{{ post.likeCount || 0 }}</span>
           </button>
           <button 
             :class="['action-btn', { favorited: post.favorited }]" 
@@ -152,7 +155,7 @@
             @click.prevent.stop="openPost(post.id)"
           >
             <span class="iconify" data-icon="mdi:comment-outline" data-inline="false"></span>
-            <span>{{ post.comments || 0 }}</span>
+            <span>{{ post.commentCount || 0 }}</span>
           </button>
         </div>
       </router-link>
@@ -161,11 +164,12 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { getPosts, likePost, unlikePost } from '@/api/posts'
 import { getFavoriteFolders, createFavoriteFolder, addPostToFavorites } from '@/api/favorites'
+import { followUser, unfollowUser } from '@/api/user'
 
 const authStore = useAuthStore()
 const isAuthenticated = computed(() => authStore.isAuthenticated)
@@ -191,6 +195,13 @@ const newFolderName = ref('')
 // Toast
 const showToast = ref(false)
 const toastText = ref('')
+
+// 用户操作菜单
+const showingMenu = ref(false)
+const selectedUser = ref(null)
+
+// 关注状态管理
+const followingMap = ref(new Map())
 
 // 本地存储状态管理（localStorage）
 function getLocalLikeStatus(postId) {
@@ -227,6 +238,7 @@ function mapBackendToView(raw) {
   return {
     id: postId,
     author: {
+      id: author.id || author.userId || author.user_id || raw.authorId || raw.createdBy || raw.owner || null,
       avatar: raw.avatarUrl || author.avatar || author.photo || author.image || author.avatarUrl || 'https://via.placeholder.com/80',
       name: raw.nickname || author.nickname || raw.username || author.name || author.username || '匿名',
       handle: raw.username || author.handle || author.username || (raw.nickname ? raw.nickname.replace(/\s+/g, '') : (author.nickname ? author.nickname.replace(/\s+/g, '') : '')),
@@ -237,10 +249,10 @@ function mapBackendToView(raw) {
     caption: raw.topic || raw.title || raw.content || raw.caption || '',
     hashtags: Array.isArray(raw.tags) ? raw.tags.join(' ') : (raw.tags || ''),
     image: firstImage,
-    likes: raw.likeCount ?? raw.likes ?? 0,
+    likeCount: raw.likeCount ?? raw.likes ?? 0,
     liked: isAuthenticated.value ? getLocalLikeStatus(postId) : false,
     favorites: raw.favoriteCount ?? raw.favorites ?? raw.bookmarks ?? 0,
-    comments: raw.commentCount ?? raw.commentsCount ?? raw.comment_count ?? (Array.isArray(raw.comments) ? raw.comments.length : (raw.commentNum ?? 0)),
+    commentCount: raw.commentCount ?? raw.commentsCount ?? raw.comment_count ?? (Array.isArray(raw.comments) ? raw.comments.length : (raw.commentNum ?? 0)),
     favorited: isAuthenticated.value ? getLocalFavoriteStatus(postId) : false
   }
 }
@@ -287,6 +299,10 @@ function openPost(id) {
   router.push({ name: 'post', params: { id } })
 }
 
+function goToUserDetail(userId) {
+  router.push({ name: 'user-detail', params: { id: userId } })
+}
+
 function handleFollowingClick() {
   if (!isAuthenticated.value) {
     router.push('/login')
@@ -319,6 +335,54 @@ function showToastMessage(message) {
   setTimeout(() => { showToast.value = false }, 1500)
 }
 
+// 显示用户菜单
+function showUserMenu(user) {
+  if (showingMenu.value && selectedUser.value && selectedUser.value.id === user.id) {
+    // 如果点击的是同一个用户，关闭菜单
+    showingMenu.value = false
+    selectedUser.value = null
+  } else {
+    // 显示菜单并记录当前选中的用户
+    showingMenu.value = true
+    selectedUser.value = user
+  }
+}
+
+// 检查是否关注用户
+function isFollowingUser(userId) {
+  return followingMap.value.get(userId) || false
+}
+
+// 关注/取消关注用户
+async function toggleFollow(userId) {
+  if (!isAuthenticated.value) {
+    showToastMessage('请先登录')
+    setTimeout(() => router.push('/login'), 800)
+    return
+  }
+
+  try {
+    const isCurrentlyFollowing = isFollowingUser(userId)
+    
+    if (isCurrentlyFollowing) {
+      await unfollowUser(userId)
+      followingMap.value.set(userId, false)
+      showToastMessage('已取消关注')
+    } else {
+      await followUser(userId)
+      followingMap.value.set(userId, true)
+      showToastMessage('关注成功')
+    }
+    
+    // 关闭菜单
+    showingMenu.value = false
+    selectedUser.value = null
+  } catch (error) {
+    console.error('关注操作失败:', error)
+    showToastMessage('操作失败，请重试')
+  }
+}
+
 // 点赞功能
 async function toggleLike(post) {
   if (!isAuthenticated.value) {
@@ -327,22 +391,22 @@ async function toggleLike(post) {
     return
   }
 
-  if (post.likes === undefined) post.likes = 0
+  if (post.likeCount === undefined) post.likeCount = 0
   if (post.liked === undefined) post.liked = false
 
   const wasLiked = post.liked
-  const wasLikeCount = post.likes
+  const wasLikeCount = post.likeCount
 
   try {
     if (post.liked) {
       post.liked = false
-      post.likes = Math.max(0, post.likes - 1)
+      post.likeCount = Math.max(0, post.likeCount - 1)
       await unlikePost(post.id, currentUserId.value)
       setLocalLikeStatus(post.id, false)
       showToastMessage('已取消点赞')
     } else {
       post.liked = true
-      post.likes = (post.likes || 0) + 1
+      post.likeCount = (post.likeCount || 0) + 1
       await likePost(post.id, currentUserId.value)
       setLocalLikeStatus(post.id, true)
       showToastMessage('点赞成功')
@@ -352,7 +416,7 @@ async function toggleLike(post) {
   } catch (error) {
     console.error('点赞操作失败', error)
     post.liked = wasLiked
-    post.likes = wasLikeCount
+    post.likeCount = wasLikeCount
     showToastMessage('操作失败，请重试')
   }
 }
@@ -461,7 +525,34 @@ onMounted(() => {
   if (isAuthenticated.value) {
     loadFavoriteFolders()
   }
+  
+  // 添加点击外部关闭菜单的监听器
+  document.addEventListener('click', handleClickOutside)
 })
+
+// 清理监听器
+onUnmounted(() => {
+  document.removeEventListener('click', handleClickOutside)
+})
+
+// 处理点击外部关闭菜单
+function handleClickOutside(event) {
+  if (showingMenu.value && selectedUser.value) {
+    const userAvatarElements = document.querySelectorAll('.user-avatar-container')
+    let clickedOnAvatar = false
+    
+    userAvatarElements.forEach(element => {
+      if (element.contains(event.target)) {
+        clickedOnAvatar = true
+      }
+    })
+    
+    if (!clickedOnAvatar) {
+      showingMenu.value = false
+      selectedUser.value = null
+    }
+  }
+}
 </script>
 
 <style scoped>
@@ -804,6 +895,61 @@ onMounted(() => {
 
 .action-btn.favorited {
   color: #10b981;
+}
+
+/* 用户头像和菜单样式 */
+.user-avatar-container {
+  position: relative;
+  cursor: pointer;
+  display: inline-block;
+}
+
+.user-menu {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  z-index: 100;
+  min-width: 120px;
+  margin-top: 8px;
+}
+
+.user-menu::before {
+  content: '';
+  position: absolute;
+  top: -8px;
+  left: 12px;
+  width: 0;
+  height: 0;
+  border-left: 8px solid transparent;
+  border-right: 8px solid transparent;
+  border-bottom: 8px solid white;
+}
+
+.menu-item {
+  padding: 10px 16px;
+  cursor: pointer;
+  font-size: 14px;
+  color: #333;
+  transition: background-color 0.2s;
+}
+
+.menu-item:hover {
+  background-color: #f5f5f5;
+}
+
+/* 添加第一个菜单项的上边框圆角 */
+.menu-item:first-child {
+  border-top-left-radius: 8px;
+  border-top-right-radius: 8px;
+}
+
+/* 添加最后一个菜单项的下边框圆角 */
+.menu-item:last-child {
+  border-bottom-left-radius: 8px;
+  border-bottom-right-radius: 8px;
 }
 
 .toast {

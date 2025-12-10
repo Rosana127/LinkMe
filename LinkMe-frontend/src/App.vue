@@ -20,37 +20,7 @@
           
           <!-- 右侧栏 - 根据页面显示不同内容 -->
           <div class="right-sidebar" v-if="showRightSidebar">
-            <!-- Saved页面 - 收藏统计 -->
-            <div class="recommendation-section">
-              <h3 class="section-title">Saved Stats</h3>
-              <div class="stats-grid">
-                <div class="stat-card">
-                  <div class="stat-number">24</div>
-                  <div class="stat-label">Total Saved</div>
-                </div>
-                <div class="stat-card">
-                  <div class="stat-number">8</div>
-                  <div class="stat-label">This Week</div>
-                </div>
-              </div>
-              
-              <div class="top-categories">
-                <h4 class="summary-title">Top Categories</h4>
-                <div class="category-list">
-                  <div 
-                    v-for="category in topCategories" 
-                    :key="category.name"
-                    class="category-item"
-                  >
-                    <span class="category-icon">
-                      <span class="iconify" :data-icon="category.icon" data-inline="false"></span>
-                    </span>
-                    <span class="category-name">{{ category.name }}</span>
-                    <span class="category-count">{{ category.count }}</span>
-                  </div>
-                </div>
-              </div>
-            </div>
+            <!-- 右侧栏内容已移除 -->
           </div>
         </div>
       </main>
@@ -80,39 +50,20 @@ const showRightSidebar = computed(() => {
   return route.name === 'home' // 只显示home页面的右侧栏
 })
 
+// 路由监听和组件加载相关代码已简化
 
-// Saved页面 - 热门分类
-const topCategories = ref([
-  {
-    name: 'Photos',
-    count: 12,
-    icon: 'mdi:image'
-  },
-  {
-    name: 'Travel',
-    count: 8,
-    icon: 'mdi:map'
-  },
-  {
-    name: 'Music',
-    count: 5,
-    icon: 'mdi:music'
-  },
-  {
-    name: 'Food',
-    count: 4,
-    icon: 'mdi:food'
-  }
-])
+
+// 用户统计数据相关代码已移除
+
+
 </script>
 
 <style scoped>
 .app-container {
   display: flex;
   min-height: 100vh;
-  background-color: #ffffff; /* 修改背景色为白色 */
+  background-color: #ffffff;
 }
-
 
 .main-content {
   flex: 1;
@@ -140,39 +91,17 @@ const topCategories = ref([
   height: calc(100vh - 40px);
 }
 
-.recommendation-section {
-  background-color: #1a1a1a;
-  border-radius: 12px;
-  padding: 20px;
-  margin-bottom: 20px;
-}
-
-.section-title {
-  font-size: 18px;
-  font-weight: bold;
-  color: #ffffff; /* 保持文字为白色以确保在深色卡片上的可读性 */
-  margin-bottom: 20px;
-}
-
-.summary-title {
-  font-size: 16px;
-  font-weight: 600;
-  color: #ffffff;
-  margin-bottom: 12px;
-}
-
-.stats-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12px;
-  margin-bottom: 20px;
-}
-
 .stat-card {
   background-color: #222222;
   border-radius: 8px;
   padding: 16px;
   text-align: center;
+  transition: transform 0.2s, background-color 0.2s;
+}
+
+.stat-card:hover {
+  transform: translateY(-2px);
+  background-color: #2a2a2a;
 }
 
 .stat-number {
@@ -195,19 +124,23 @@ const topCategories = ref([
   display: flex;
   flex-direction: column;
   gap: 8px;
+  max-height: 200px;
+  overflow-y: auto;
 }
 
 .category-item {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 8px;
+  padding: 10px;
   border-radius: 6px;
-  transition: background-color 0.2s;
+  transition: all 0.2s;
+  cursor: pointer;
 }
 
 .category-item:hover {
   background-color: #333333;
+  transform: translateX(4px);
 }
 
 .category-icon {
@@ -216,6 +149,8 @@ const topCategories = ref([
   display: flex;
   align-items: center;
   justify-content: center;
+  background-color: rgba(139, 92, 246, 0.1);
+  border-radius: 50%;
 }
 
 .category-icon .iconify {
@@ -227,10 +162,30 @@ const topCategories = ref([
   flex: 1;
   color: #ffffff;
   font-size: 14px;
+  font-weight: 500;
 }
 
 .category-count {
   color: #888888;
   font-size: 12px;
+  font-weight: 600;
+}
+
+/* 滚动条样式 */
+.category-list::-webkit-scrollbar {
+  width: 4px;
+}
+
+.category-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.category-list::-webkit-scrollbar-thumb {
+  background: #444444;
+  border-radius: 2px;
+}
+
+.category-list::-webkit-scrollbar-thumb:hover {
+  background: #555555;
 }
 </style>

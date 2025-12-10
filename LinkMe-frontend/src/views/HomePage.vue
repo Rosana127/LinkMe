@@ -29,18 +29,29 @@
       
       <div class="profile-stats">
         <div class="stat-item">
-          <span class="stat-number">{{ postCount }}</span>
-          <span class="stat-label">Posts</span>
+          <span class="stat-number">{{ totalPostInteractions }}</span>
+          <span class="stat-label">获赞与收藏</span>
         </div>
-        <div class="stat-item">
-          <span class="stat-number">{{ likeCount }}</span>
-          <span class="stat-label">Likes</span>
+        <div class="stat-item" @click="openUserListModal('following')" style="cursor: pointer;">
+          <span class="stat-number">{{ followingCount }}</span>
+          <span class="stat-label">关注</span>
         </div>
-        <div class="stat-item">
-          <span class="stat-number">{{ favoriteCount }}</span>
-          <span class="stat-label">Favorites</span>
+        <div class="stat-item" @click="openUserListModal('followers')" style="cursor: pointer;">
+          <span class="stat-number">{{ followersCount }}</span>
+          <span class="stat-label">粉丝</span>
         </div>
       </div>
+      
+      <!-- 用户列表模态框 -->
+      <UserListModal 
+        v-if="showUserListModal"
+        :title="userListTitle"
+        :users="userList"
+        :loading="userListLoading"
+        :type="userListType"
+        @close="closeUserListModal"
+        @follow-changed="handleFollowChanged"
+      />
     </div>
     
     <!-- 标签切换 -->
@@ -102,11 +113,11 @@
             <div class="post-stats">
               <span class="stat">
                 <span class="iconify" data-icon="mdi:heart" data-inline="false"></span>
-                {{ post.likes || 0 }}
+                {{ post.likeCount || 0 }}
               </span>
               <span class="stat">
                 <span class="iconify" data-icon="mdi:comment" data-inline="false"></span>
-                {{ post.comments || 0 }}
+                {{ post.commentCount || 0 }}
               </span>
             </div>
           </div>
@@ -138,9 +149,10 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
-import { getCurrentUserInfo } from '@/api/user'
+import { getCurrentUserInfo, getUserStats, getFollowers, getFollowing } from '@/api/user'
 import { getUserPosts, getPost } from '@/api/posts'
 import { getUserLikedPosts, getUserFavoritePosts, getFavoriteFolders, createFavoriteFolder } from '@/api/favorites'
+import UserListModal from '@/components/UserListModal.vue'
 
 const router = useRouter()
 const authStore = useAuthStore()
@@ -171,8 +183,26 @@ const newFolderName = ref('')
 
 // 统计数据
 const postCount = computed(() => myPosts.value.length)
-const likeCount = computed(() => likedPosts.value.length)
-const favoriteCount = computed(() => favoritePosts.value.length)
+const myLikeCount = computed(() => likedPosts.value.length)
+const myFavoriteCount = computed(() => favoritePosts.value.length)
+const postLikesCount = computed(() => {
+  return myPosts.value.reduce((total, post) => total + (post.likeCount || 0), 0)
+})
+const postFavoritesCount = computed(() => {
+  return myPosts.value.reduce((total, post) => total + (post.favoriteCount || 0), 0)
+})
+const totalPostInteractions = computed(() => {
+  return postLikesCount.value + postFavoritesCount.value
+})
+const followingCount = ref(0)
+const followersCount = ref(0)
+
+// 用户列表模态框
+const showUserListModal = ref(false)
+const userListTitle = ref('')
+const userListType = ref('followers') // 'followers' or 'following'
+const userList = ref([])
+const userListLoading = ref(false)
 
 // 当前显示的帖子
 const displayPosts = computed(() => {
@@ -246,8 +276,8 @@ async function loadMyPosts() {
     myPosts.value = myPosts.value.map(post => ({
       ...post,
       images: post.images || (post.imageUrl ? [post.imageUrl] : []),
-      likes: post.likes || 0,
-      comments: post.comments || 0
+      likeCount: post.likeCount || 0,
+      commentCount: post.commentCount || 0
     }))
   } catch (error) {
     console.error('加载我的帖子失败:', error)
@@ -271,8 +301,8 @@ async function loadLikedPosts() {
     likedPosts.value = posts.map(post => ({
       ...post,
       images: post.images || (post.imageUrl ? [post.imageUrl] : []),
-      likes: post.likes || 0,
-      comments: post.comments || 0
+      likeCount: post.likeCount || 0,
+      commentCount: post.commentCount || 0
     }))
   } catch (error) {
     console.error('加载点赞帖子失败:', error)
@@ -297,8 +327,8 @@ async function loadFavoritePosts() {
       ...post,
       folderId: favorites[index].folderId,
       images: post.images || (post.imageUrl ? [post.imageUrl] : []),
-      likes: post.likes || 0,
-      comments: post.comments || 0
+      likeCount: post.likeCount || 0,
+      commentCount: post.commentCount || 0
     }))
   } catch (error) {
     console.error('加载收藏帖子失败:', error)
@@ -372,6 +402,93 @@ async function loadUserInfo() {
   }
 }
 
+// 加载用户统计数据（关注数和粉丝数）
+async function loadUserStats() {
+  try {
+    const userId = authStore.userId
+    if (!userId) return
+    
+    const stats = await getUserStats(userId)
+    const statsData = stats?.data || stats || {}
+    
+    followingCount.value = statsData.following || 0
+    followersCount.value = statsData.followers || 0
+  } catch (error) {
+    console.error('加载用户统计数据失败:', error)
+    followingCount.value = 0
+    followersCount.value = 0
+  }
+}
+
+// 加载关注者列表
+async function loadFollowers() {
+  try {
+    const userId = authStore.userId
+    if (!userId) return
+    
+    userListLoading.value = true
+    const offset = 0
+    const limit = 10
+    const followers = await getFollowers(userId, offset, limit)
+    userList.value = Array.isArray(followers?.data) ? followers.data : (Array.isArray(followers) ? followers : [])
+  } catch (error) {
+    console.error('加载关注者列表失败:', error)
+    userList.value = []
+  } finally {
+    userListLoading.value = false
+  }
+}
+
+// 加载关注列表
+async function loadFollowing() {
+  try {
+    const userId = authStore.userId
+    if (!userId) return
+    
+    userListLoading.value = true
+    const offset = 0
+    const limit = 10
+    const following = await getFollowing(userId, offset, limit)
+    userList.value = Array.isArray(following?.data) ? following.data : (Array.isArray(following) ? following : [])
+  } catch (error) {
+    console.error('加载关注列表失败:', error)
+    userList.value = []
+  } finally {
+    userListLoading.value = false
+  }
+}
+
+// 打开用户列表模态框
+async function openUserListModal(type) {
+  userListType.value = type
+  userListTitle.value = type === 'followers' ? '粉丝' : '关注'
+  
+  if (type === 'followers') {
+    await loadFollowers()
+  } else {
+    await loadFollowing()
+  }
+  
+  showUserListModal.value = true
+}
+
+// 关闭用户列表模态框
+function closeUserListModal() {
+  showUserListModal.value = false
+}
+
+// 关注状态变化处理
+function handleFollowChanged(data) {
+  const { userId, isFollowing } = data
+  if (isFollowing) {
+    followingCount.value++
+  } else {
+    followingCount.value = Math.max(0, followingCount.value - 1)
+  }
+  // 重新加载用户统计数据以确保准确性
+  loadUserStats()
+}
+
 // 跳转到帖子详情
 function goToPostDetail(postId) {
   router.push(`/post/${postId}`)
@@ -380,7 +497,14 @@ function goToPostDetail(postId) {
 // 初始化
 onMounted(async () => {
   await loadUserInfo()
-  await loadMyPosts()
+  // 同时加载所有需要的数据，确保右上角统计显示正确
+  await Promise.all([
+    loadMyPosts(),
+    loadLikedPosts(),
+    loadFavoritePosts(),
+    loadFavoriteFolders(),
+    loadUserStats() // 加载用户统计数据（关注数和粉丝数）
+  ])
 })
 </script>
 
