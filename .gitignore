@@ -41,6 +41,7 @@ components.d.ts
 
 # Testing
 coverage/
+tests/
 
 # Temporary files
 *.tmp
