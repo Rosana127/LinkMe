@@ -98,7 +98,10 @@
               v-for="chat in filteredChats"
               :key="chat.id"
               class="flex items-center py-3 px-3 rounded-lg hover:bg-gray-800 cursor-pointer transition-colors"
-              :class="{ 'special-care': chat.id === selectedChatId }"
+              :class="{ 
+                'special-care': chat.id === selectedChatId,
+                'bg-gray-800 bg-opacity-50': chat.isPinned
+              }"
               @click="selectChat(chat.id)"
             >
               <!-- 头像部分添加固定宽度和z-index，确保不被消息挤占 -->
@@ -628,13 +631,29 @@ async function deleteNotification(notificationId) {
 // const unreadNotificationsCount = computed(() => notifications.value.filter(n => !n.read).length)
 
 const filteredChats = computed(() => {
-  if (!searchQuery.value) return chats.value;
-  const q = searchQuery.value.toLowerCase();
-  return chats.value.filter(
-    (c) =>
-      (c.name || "").toLowerCase().includes(q) ||
-      (c.lastMessage || "").toLowerCase().includes(q)
-  );
+  let result = chats.value;
+  
+  // 1. 搜索过滤
+  if (searchQuery.value) {
+    const q = searchQuery.value.toLowerCase();
+    result = result.filter(
+      (c) =>
+        (c.name || "").toLowerCase().includes(q) ||
+        (c.lastMessage || "").toLowerCase().includes(q)
+    );
+  }
+
+  // 2. 排序：置顶优先，然后按时间倒序
+  return [...result].sort((a, b) => {
+    // 置顶判断
+    if (a.isPinned && !b.isPinned) return -1;
+    if (!a.isPinned && b.isPinned) return 1;
+    
+    // 时间判断
+    const timeA = a.lastMessageTime ? new Date(a.lastMessageTime).getTime() : 0;
+    const timeB = b.lastMessageTime ? new Date(b.lastMessageTime).getTime() : 0;
+    return timeB - timeA;
+  });
 });
 
 const filteredNotifications = computed(() => {
@@ -753,7 +772,7 @@ async function loadConversations() {
       await checkFollowStatus();
     }
     // 排序：置顶的在前
-    sortChats();
+    // sortChats();
   } catch (e) {
     console.error("加载会话失败", e);
     chats.value = [];
@@ -1169,7 +1188,7 @@ const togglePin = async () => {
       chatInList.isPinned = newPinnedStatus;
     }
     // 重新排序聊天列表：置顶的在前
-    sortChats();
+    // sortChats();
     showOptionsMenu.value = false;
     
     console.log(`置顶状态已更新为: ${newPinnedStatus}，列表已重新排序`);
@@ -1179,16 +1198,6 @@ const togglePin = async () => {
   }
 };
 
-// 排序聊天列表：置顶的排在最前面
-const sortChats = () => {
-  chats.value.sort((a, b) => {
-    // 置顶的在前
-    if (a.isPinned && !b.isPinned) return -1;
-    if (!a.isPinned && b.isPinned) return 1;
-    // 都置顶或都不置顶时，保持原有顺序
-    return 0;
-  });
-};
 
 // 屏蔽消息
 const blockMessages = async () => {
@@ -1444,6 +1453,8 @@ const handleWebSocketMessage = async (message) => {
         }
       }
 
+      // 列表排序由 filteredChats 计算属性自动处理
+      /*
       // 将该会话移到列表最前面（如果不是置顶状态）
       const chat = chats.value.splice(chatIndex, 1)[0];
       if (!chat.isPinned) {
@@ -1458,6 +1469,7 @@ const handleWebSocketMessage = async (message) => {
         // 置顶会话保持在最前面
         chats.value.unshift(chat);
       }
+      */
 
       // 如果当前正在查看这个会话，更新消息列表
       if (selectedChatId.value === chat.id) {
