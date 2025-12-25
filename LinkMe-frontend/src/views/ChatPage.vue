@@ -63,9 +63,10 @@
               <!-- 头像部分添加固定宽度和z-index，确保不被消息挤占 -->
               <div class="relative flex-shrink-0">
                 <img 
-                  :src="chat.avatar" 
+                  :src="getAvatarUrl(chat.avatar, chat.name)" 
                   :alt="chat.name" 
                   class="w-12 h-12 rounded-full"
+                  @error="handleAvatarError($event, chat.name)"
                 >
                 <span 
                   v-if="chat.isOnline" 
@@ -124,9 +125,10 @@
           <div class="flex items-center">
             <div class="relative">
               <img 
-                :src="selectedChat?.avatar" 
+                :src="getAvatarUrl(selectedChat?.avatar, selectedChat?.name)" 
                 :alt="selectedChat?.name" 
                 class="w-12 h-12 rounded-full"
+                @error="handleAvatarError($event, selectedChat?.name)"
               >
               <span 
                 v-if="selectedChat?.isOnline" 
@@ -208,9 +210,10 @@
           >
             <div class="flex items-end space-x-2" v-if="!message.isFromUser">
               <img 
-                :src="message.senderAvatar || selectedChat?.avatar" 
+                :src="getAvatarUrl(message.senderAvatar || selectedChat?.avatar, message.senderNickname || selectedChat?.name)" 
                 :alt="message.senderNickname || selectedChat?.name" 
                 class="w-8 h-8 rounded-full"
+                @error="handleAvatarError($event, message.senderNickname || selectedChat?.name)"
               >
               <div class="chat-bubble bg-gray-700 max-w-md">
                 <div v-if="message.isAI" class="flex items-center mb-1">
@@ -283,10 +286,12 @@
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import * as chatApi from '@/api/chat'
 import * as userApi from '@/api/user'
 
+const route = useRoute()
 const authStore = useAuthStore()
 const searchQuery = ref('')
 const selectedChatId = ref(null)
@@ -296,6 +301,66 @@ const messagesContainer = ref(null)
 const showOptionsMenu = ref(false) // 控制下拉菜单显示
 const isFollowing = ref(false) // 当前是否已关注对方
 const isBlocking = ref(false) // 当前是否已屏蔽对方
+
+// 生成文字头像（显示用户名字前两个字）
+function generateTextAvatar(name) {
+  if (!name) return null
+  
+  // 获取名字前两个字
+  const text = name.length >= 2 ? name.substring(0, 2) : name.substring(0, 1)
+  
+  // 创建 canvas 生成头像
+  const canvas = document.createElement('canvas')
+  canvas.width = 80
+  canvas.height = 80
+  const ctx = canvas.getContext('2d')
+  
+  // 生成随机背景色（基于名字的哈希值）
+  const colors = [
+    '#8b5cf6', '#3b82f6', '#10b981', '#f59e0b', 
+    '#ef4444', '#ec4899', '#06b6d4', '#6366f1'
+  ]
+  const hash = name.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0)
+  const bgColor = colors[hash % colors.length]
+  
+  // 绘制背景
+  ctx.fillStyle = bgColor
+  ctx.fillRect(0, 0, canvas.width, canvas.height)
+  
+  // 绘制文字
+  ctx.fillStyle = '#ffffff'
+  ctx.font = 'bold 32px Arial, sans-serif'
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'middle'
+  ctx.fillText(text, canvas.width / 2, canvas.height / 2)
+  
+  return canvas.toDataURL()
+}
+
+// 获取头像 URL（优先使用真实头像，否则生成文字头像）
+function getAvatarUrl(avatar, name) {
+  if (avatar && avatar.trim() !== '') {
+    return avatar
+  }
+  
+  // 如果没有头像，生成文字头像
+  if (name) {
+    return generateTextAvatar(name) || ''
+  }
+  
+  return ''
+}
+
+// 处理头像加载错误
+function handleAvatarError(event, name) {
+  // 如果头像加载失败，生成文字头像
+  if (name) {
+    const textAvatar = generateTextAvatar(name)
+    if (textAvatar) {
+      event.target.src = textAvatar
+    }
+  }
+}
 
 // 会话列表（从后端拉取）
 const chats = ref([])
@@ -397,7 +462,7 @@ function mapConversationToChat(conv) {
   
   // Support backend ConversationResponse shape (conversationId, otherUserId, otherUserNickname, otherUserAvatar)
   const id = conv.conversationId ?? conv.id ?? conv.conversation_id
-  const otherId = conv.otherUserId ?? (conv.other && (conv.other.id ?? conv.other.userId)) ?? null
+  const otherId = conv.otherUserId ?? (conv.other && (conv.other.id ?? conv.other.userId ?? conv.other.user_id)) ?? null
   const name = conv.otherUserNickname ?? conv.other?.nickname ?? conv.name ?? `对话 ${id}`
   const avatar = conv.otherUserAvatar ?? conv.other?.avatarUrl ?? conv.other?.avatar ?? ''
   const lastMessage = conv.lastMessage ?? (conv.lastMessageObj && (conv.lastMessageObj.content || conv.lastMessageObj.text)) ?? ''
@@ -442,7 +507,9 @@ async function loadConversations() {
         }
       }
     }
-    if (!selectedChatId.value && chats.value.length) {
+    // 只有在没有路由参数指定用户时才自动选择第一个聊天
+    const routeUserId = route.params.userId
+    if (!selectedChatId.value && chats.value.length && !routeUserId) {
       selectedChatId.value = chats.value[0].id
       await loadMessages(selectedChatId.value)
       // 检查关注状态
@@ -513,6 +580,134 @@ const selectChat = async (chatId) => {
   
   // 检查是否关注对方
   await checkFollowStatus()
+}
+
+// 根据 userId 创建或选择聊天
+const createOrSelectChatByUserId = async (userId) => {
+  if (!userId) {
+    console.log('createOrSelectChatByUserId: userId 为空')
+    return
+  }
+  
+  const targetUserId = typeof userId === 'string' ? parseInt(userId) : userId
+  if (isNaN(targetUserId)) {
+    console.error('无效的用户ID:', userId)
+    return
+  }
+  
+  console.log('createOrSelectChatByUserId: 开始处理，目标用户ID:', targetUserId, '当前聊天列表数量:', chats.value.length)
+  
+  // 先检查是否已存在与该用户的聊天
+  const existingChat = chats.value.find(chat => {
+    const otherId = chat.otherId || chat.otherUserId
+    const match = otherId === targetUserId || otherId === userId || String(otherId) === String(targetUserId) || String(otherId) === String(userId)
+    if (match) {
+      console.log('找到已存在的聊天:', { chatId: chat.id, otherId, targetUserId })
+    }
+    return match
+  })
+  
+  if (existingChat) {
+    // 如果已存在，直接选择该聊天
+    console.log('找到已存在的聊天，ID:', existingChat.id, 'otherId:', existingChat.otherId)
+    await selectChat(existingChat.id)
+    return
+  }
+  
+  // 如果不存在，创建新聊天
+  try {
+    console.log('创建新聊天，目标用户ID:', targetUserId)
+    // 后端期望的字段是 userId，不是 otherUserId
+    const payload = { userId: targetUserId }
+    console.log('发送创建聊天请求，payload:', payload)
+    
+    const response = await chatApi.createConversation(payload)
+    console.log('创建聊天响应:', response)
+    console.log('响应类型:', typeof response, '是否为数组:', Array.isArray(response))
+    
+    // 处理不同的响应格式
+    let conversationId = null
+    let conversationData = null
+    
+    if (response) {
+      // 如果 response 本身就是 ConversationResponse 对象
+      if (response.conversationId) {
+        conversationId = response.conversationId
+        conversationData = response
+      } else if (response.id) {
+        conversationId = response.id
+        conversationData = response
+      } else if (response.data) {
+        // 如果 response 有 data 字段（统一响应格式 R<T>）
+        const data = response.data
+        conversationId = data.conversationId || data.id || data.conversation_id
+        conversationData = data
+      }
+    }
+    
+    console.log('解析得到的会话ID:', conversationId)
+    console.log('会话数据:', conversationData)
+    
+    if (conversationId) {
+      // 如果响应中包含了完整的会话数据，直接添加到聊天列表
+      if (conversationData) {
+        const newChat = mapConversationToChat(conversationData)
+        console.log('映射后的新聊天对象:', newChat)
+        
+        // 检查是否已存在（避免重复）
+        const exists = chats.value.find(c => c.id === newChat.id)
+        if (!exists) {
+          chats.value.push(newChat)
+          console.log('新聊天已添加到列表')
+        }
+        
+        // 选择新创建的聊天
+        await selectChat(newChat.id)
+      } else {
+        // 如果只有ID，重新加载会话列表
+        console.log('重新加载会话列表...')
+        await loadConversations()
+        console.log('会话列表重新加载完成，当前聊天数量:', chats.value.length)
+        
+        // 查找新创建的聊天并选择它
+        const newChat = chats.value.find(chat => {
+          const chatId = chat.id || chat.conversationId
+          const otherId = chat.otherId || chat.otherUserId
+          const match = chatId === conversationId || otherId === targetUserId || otherId === userId || String(otherId) === String(targetUserId)
+          if (match) {
+            console.log('找到新创建的聊天:', { chatId, conversationId, otherId, targetUserId })
+          }
+          return match
+        })
+        
+        if (newChat) {
+          console.log('选择新创建的聊天，ID:', newChat.id)
+          await selectChat(newChat.id)
+        } else {
+          // 如果找不到，直接使用 conversationId
+          console.log('未在列表中找到，直接使用 conversationId:', conversationId)
+          await selectChat(conversationId)
+        }
+      }
+    } else {
+      console.error('创建聊天失败：未返回会话ID，完整响应:', JSON.stringify(response, null, 2))
+    }
+  } catch (error) {
+    console.error('创建聊天失败:', error)
+    console.error('错误详情:', error.response || error.message || error)
+    // 如果创建失败，尝试重新加载会话列表，可能聊天已经存在
+    await loadConversations()
+    const existingChatAfterReload = chats.value.find(chat => {
+      const otherId = chat.otherId || chat.otherUserId
+      return otherId === targetUserId || otherId === userId || String(otherId) === String(targetUserId)
+    })
+    if (existingChatAfterReload) {
+      console.log('重新加载后找到已存在的聊天:', existingChatAfterReload.id)
+      await selectChat(existingChatAfterReload.id)
+    } else {
+      console.error('创建聊天失败，且重新加载后仍未找到对应的聊天')
+    }
+  }
 }
 
 // 检查关注状态
@@ -729,9 +924,19 @@ const scrollToBottom = () => {
 
 watch(selectedChatId, () => { nextTick(() => scrollToBottom()) })
 
-onMounted(() => {
-  loadConversations()
-  loadNotifications()
+onMounted(async () => {
+  await loadConversations()
+  await loadNotifications()
+  
+  // 检查路由参数，如果有 userId，创建或选择对应的聊天
+  const userId = route.params.userId
+  if (userId) {
+    console.log('从路由参数获取到 userId:', userId)
+    // 等待会话列表加载完成后再创建/选择聊天
+    await nextTick()
+    await createOrSelectChatByUserId(userId)
+  }
+  
   // 点击页面其他地方关闭下拉菜单
   document.addEventListener('click', closeOptionsMenu)
 })

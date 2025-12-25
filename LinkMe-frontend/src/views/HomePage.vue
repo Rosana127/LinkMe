@@ -6,9 +6,10 @@
     <div class="profile-card">
       <div class="profile-header">
         <img 
-          :src="userInfo?.avatar || userInfo?.avatarUrl || 'https://modao.cc/ai/uploads/ai_pics/32/327755/aigp_1758963762.jpeg'" 
+          :src="getAvatarUrl()" 
           alt="Profile" 
           class="profile-avatar"
+          @error="handleAvatarError"
         >
         <div class="profile-info">
           <h2 class="profile-name">{{ userInfo?.nickname || userInfo?.username || 'User' }}</h2>
@@ -152,6 +153,7 @@ import { useAuthStore } from '@/stores/auth'
 import { getCurrentUserInfo, getUserStats, getFollowers, getFollowing } from '@/api/user'
 import { getUserPosts, getPost } from '@/api/posts'
 import { getUserLikedPosts, getUserFavoritePosts, getFavoriteFolders, createFavoriteFolder } from '@/api/favorites'
+import { fetchTagDefinitions } from '@/api/tags'
 import UserListModal from '@/components/UserListModal.vue'
 
 const router = useRouter()
@@ -161,8 +163,119 @@ const authStore = useAuthStore()
 const userInfo = ref(null)
 const loading = ref(false)
 
+// 标签映射（ID -> 名称）
+const tagMap = ref(new Map())
+
+// 生成文字头像（显示用户名字前两个字）
+function generateTextAvatar(name) {
+  if (!name) return null
+  
+  // 获取名字前两个字
+  const text = name.length >= 2 ? name.substring(0, 2) : name.substring(0, 1)
+  
+  // 创建 canvas 生成头像
+  const canvas = document.createElement('canvas')
+  canvas.width = 120
+  canvas.height = 120
+  const ctx = canvas.getContext('2d')
+  
+  // 生成随机背景色（基于名字的哈希值）
+  const colors = [
+    '#8b5cf6', '#3b82f6', '#10b981', '#f59e0b', 
+    '#ef4444', '#ec4899', '#06b6d4', '#6366f1'
+  ]
+  const hash = name.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0)
+  const bgColor = colors[hash % colors.length]
+  
+  // 绘制背景
+  ctx.fillStyle = bgColor
+  ctx.fillRect(0, 0, canvas.width, canvas.height)
+  
+  // 绘制文字
+  ctx.fillStyle = '#ffffff'
+  ctx.font = 'bold 48px Arial, sans-serif'
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'middle'
+  ctx.fillText(text, canvas.width / 2, canvas.height / 2)
+  
+  return canvas.toDataURL()
+}
+
+// 获取头像 URL
+function getAvatarUrl() {
+  const avatar = userInfo.value?.avatar || userInfo.value?.avatarUrl
+  if (avatar) {
+    return avatar
+  }
+  
+  // 如果没有头像，生成文字头像
+  const name = userInfo.value?.nickname || userInfo.value?.username || 'User'
+  return generateTextAvatar(name)
+}
+
+// 处理头像加载错误
+function handleAvatarError(event) {
+  // 如果头像加载失败，生成文字头像
+  const name = userInfo.value?.nickname || userInfo.value?.username || 'User'
+  const textAvatar = generateTextAvatar(name)
+  if (textAvatar) {
+    event.target.src = textAvatar
+  }
+}
+
 // 用户标签（从 userInfo 中提取）
 const userTags = ref([])
+
+// 加载标签映射（同时加载用户标签和帖子标签）
+async function loadTagMap() {
+  try {
+    // 同时加载用户标签和帖子标签
+    const [userTagsResult, postTagsResult] = await Promise.all([
+      fetchTagDefinitions({ type: 'user' }),
+      fetchTagDefinitions({ type: 'post' })
+    ])
+    
+    const map = new Map()
+    
+    // 合并两种类型的标签
+    const allTags = userTagsResult.concat(postTagsResult)
+    allTags.forEach(tag => {
+      const tagId = tag.tagId || tag.id || tag.tag_id
+      const tagName = tag.name || tag.tagName || tag.tag_name
+      if (tagId && tagName) {
+        // 确保 tagId 是数字类型，以便正确匹配
+        const numericId = typeof tagId === 'string' ? parseInt(tagId) : tagId
+        if (!isNaN(numericId)) {
+          map.set(numericId, tagName)
+          // 同时存储字符串类型的ID，以防万一
+          if (typeof tagId === 'string') {
+            map.set(tagId, tagName)
+          }
+        }
+      }
+    })
+    tagMap.value = map
+    console.log('标签映射加载完成，共', map.size, '个标签:', Array.from(map.entries()))
+  } catch (e) {
+    console.error('加载标签映射失败:', e)
+  }
+}
+
+// 将标签ID数组转换为标签名称字符串，每个标签前面加井号
+function formatTags(tagIds) {
+  if (!Array.isArray(tagIds) || tagIds.length === 0) {
+    return ''
+  }
+  return tagIds.map(tagId => {
+    // 尝试多种方式查找标签名称
+    let tagName = tagMap.value.get(tagId)
+    if (!tagName) {
+      const numericId = typeof tagId === 'string' ? parseInt(tagId) : tagId
+      tagName = tagMap.value.get(numericId) || `标签${tagId}`
+    }
+    return `#${tagName}`
+  }).join(' ')
+}
 
 // 标签切换
 const activeTab = ref('posts') // posts, likes, favorites
@@ -272,12 +385,13 @@ async function loadMyPosts() {
   try {
     const posts = await getUserPosts(userId)
     myPosts.value = Array.isArray(posts) ? posts : (posts?.data || [])
-    // 确保每个帖子都有 images 数组
+    // 确保每个帖子都有 images 数组，并处理标签
     myPosts.value = myPosts.value.map(post => ({
       ...post,
       images: post.images || (post.imageUrl ? [post.imageUrl] : []),
       likeCount: post.likeCount || 0,
-      commentCount: post.commentCount || 0
+      commentCount: post.commentCount || 0,
+      hashtags: formatTags(post.tags || []) // 映射标签ID为名称
     }))
   } catch (error) {
     console.error('加载我的帖子失败:', error)
@@ -302,7 +416,8 @@ async function loadLikedPosts() {
       ...post,
       images: post.images || (post.imageUrl ? [post.imageUrl] : []),
       likeCount: post.likeCount || 0,
-      commentCount: post.commentCount || 0
+      commentCount: post.commentCount || 0,
+      hashtags: formatTags(post.tags || []) // 映射标签ID为名称
     }))
   } catch (error) {
     console.error('加载点赞帖子失败:', error)
@@ -328,7 +443,8 @@ async function loadFavoritePosts() {
       folderId: favorites[index].folderId,
       images: post.images || (post.imageUrl ? [post.imageUrl] : []),
       likeCount: post.likeCount || 0,
-      commentCount: post.commentCount || 0
+      commentCount: post.commentCount || 0,
+      hashtags: formatTags(post.tags || []) // 映射标签ID为名称
     }))
   } catch (error) {
     console.error('加载收藏帖子失败:', error)
@@ -359,23 +475,50 @@ async function loadUserInfo() {
     const info = await getCurrentUserInfo()
     userInfo.value = info?.data || info || authStore.user
     
-    // 处理标签：提取标签信息
+    // 处理标签：提取标签信息并映射为名称
     if (userInfo.value) {
       const tags = userInfo.value.tags || userInfo.value.tagIds || []
+      console.log('用户标签原始数据:', tags)
+      console.log('当前标签映射:', Array.from(tagMap.value.entries()))
+      
       if (Array.isArray(tags) && tags.length > 0) {
         // 如果标签是对象数组（包含 id 和 name）
         if (typeof tags[0] === 'object' && tags[0] !== null) {
-          userTags.value = tags.map(tag => ({
-            id: tag.id || tag.tagId || tag.tag_id,
-            name: tag.name || tag.tagName || tag.tag_name || '未知标签'
-          }))
+          userTags.value = tags.map(tag => {
+            const tagId = tag.id || tag.tagId || tag.tag_id
+            // 尝试多种方式查找标签名称
+            let tagName = tag.name || tag.tagName || tag.tag_name
+            if (!tagName) {
+              // 尝试数字ID
+              const numericId = typeof tagId === 'string' ? parseInt(tagId) : tagId
+              tagName = tagMap.value.get(numericId) || tagMap.value.get(tagId) || `标签${tagId}`
+            }
+            console.log('映射标签:', tagId, '->', tagName)
+            return {
+              id: tagId,
+              name: tagName
+            }
+          })
         } else {
-          // 如果标签是 ID 数组或字符串数组
-          userTags.value = tags.map(tag => ({
-            id: tag,
-            name: typeof tag === 'string' ? tag : `标签 ${tag}`
-          }))
+          // 如果标签是 ID 数组，从 tagMap 中查找名称
+          userTags.value = tags.map(tag => {
+            const tagId = typeof tag === 'number' ? tag : (typeof tag === 'string' ? parseInt(tag) : tag)
+            // 尝试多种方式查找
+            let tagName = tagMap.value.get(tagId)
+            if (!tagName && typeof tag === 'string') {
+              tagName = tagMap.value.get(parseInt(tag))
+            }
+            if (!tagName) {
+              tagName = typeof tag === 'string' ? tag : `标签${tagId}`
+            }
+            console.log('映射标签ID:', tag, '->', tagName)
+            return {
+              id: tagId,
+              name: tagName
+            }
+          })
         }
+        console.log('最终用户标签:', userTags.value)
       } else {
         userTags.value = []
       }
@@ -390,12 +533,32 @@ async function loadUserInfo() {
     console.error('加载用户信息失败:', error)
     // 如果 API 失败，尝试使用本地存储的用户信息
     userInfo.value = authStore.user || {}
-    // 从本地存储的用户信息中提取标签
+    // 从本地存储的用户信息中提取标签并映射为名称
     if (userInfo.value && (userInfo.value.tags || userInfo.value.tagIds)) {
       const tags = userInfo.value.tags || userInfo.value.tagIds || []
-      userTags.value = Array.isArray(tags) ? tags.map(tag => 
-        typeof tag === 'object' ? tag : { id: tag, name: typeof tag === 'string' ? tag : `标签 ${tag}` }
-      ) : []
+      if (Array.isArray(tags) && tags.length > 0) {
+        if (typeof tags[0] === 'object' && tags[0] !== null) {
+          userTags.value = tags.map(tag => {
+            const tagId = tag.id || tag.tagId || tag.tag_id
+            const tagName = tag.name || tag.tagName || tag.tag_name
+            if (tagName) {
+              return { id: tagId, name: tagName }
+            }
+            // 从 tagMap 中查找
+            const numericId = typeof tagId === 'string' ? parseInt(tagId) : tagId
+            const mappedName = tagMap.value.get(numericId) || tagMap.value.get(tagId) || `标签${tagId}`
+            return { id: tagId, name: mappedName }
+          })
+        } else {
+          userTags.value = tags.map(tag => {
+            const tagId = typeof tag === 'number' ? tag : (typeof tag === 'string' ? parseInt(tag) : tag)
+            const tagName = tagMap.value.get(tagId) || (typeof tag === 'string' ? tag : `标签${tagId}`)
+            return { id: tagId, name: tagName }
+          })
+        }
+      } else {
+        userTags.value = []
+      }
     } else {
       userTags.value = []
     }
@@ -496,6 +659,7 @@ function goToPostDetail(postId) {
 
 // 初始化
 onMounted(async () => {
+  await loadTagMap() // 先加载标签映射
   await loadUserInfo()
   // 同时加载所有需要的数据，确保右上角统计显示正确
   await Promise.all([

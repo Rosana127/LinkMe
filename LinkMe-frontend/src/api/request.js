@@ -55,7 +55,18 @@ request.interceptors.response.use(
       if (Object.prototype.hasOwnProperty.call(res, 'code')) {
         const okCodes = [200, '200', 0, '0']
         if (okCodes.includes(res.code)) {
-          return res.data !== undefined ? res.data : res
+          // 如果 data 是 undefined 或 null，返回整个 res 对象（包含 message）
+          // 这样调用者可以访问 message 字段
+          if (res.data === undefined || res.data === null) {
+            return res
+          }
+          // 如果 data 存在，返回 data，但保留原始响应在 httpData 中
+          const result = res.data
+          // 为了兼容性，如果 result 是对象，添加 message 字段
+          if (typeof result === 'object' && result !== null) {
+            result._message = res.message
+          }
+          return result
         }
         const message = res.message || res.msg || '请求失败'
         const err = new Error(message)

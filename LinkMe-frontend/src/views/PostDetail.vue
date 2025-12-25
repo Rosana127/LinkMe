@@ -9,7 +9,12 @@
     <div class="post-detail-card">
       <div class="post-header">
         <div class="user-avatar-container" @click="showUserMenu(post.author)">
-          <img :src="post.author.avatar" class="user-avatar" />
+          <img 
+            :src="getAvatarUrl(post.author.avatar, post.author.name)" 
+            :alt="post.author.name"
+            class="user-avatar"
+            @error="handleAvatarError($event, post.author.name)"
+          />
           <!-- 用户操作菜单 -->
           <div 
             v-if="showingMenu && selectedUser && selectedUser.id === post.author.id" 
@@ -37,8 +42,9 @@
       </div>
 
       <div class="post-body">
+        <h2 v-if="post.title" class="post-title">{{ post.title }}</h2>
         <p class="caption">{{ post.caption }}</p>
-        <div class="hashtags">{{ post.hashtags }}</div>
+        <div v-if="post.hashtags" class="hashtags">{{ post.hashtags }}</div>
         <div v-if="currentImageSrc" class="post-image">
           <img :src="currentImageSrc" alt="post image" />
           <button
@@ -75,32 +81,145 @@
         </button>
         <button class="comment-btn" @click="focusCommentInput">
           <span class="iconify" data-icon="mdi:comment-outline" data-inline="false"></span>
-          评论 ({{ comments.length }})
+          评论 ({{ totalCommentCount }})
         </button>
       </div>
 
-  <!-- 收藏成功提示 -->
-  <div v-if="showFavToast" class="toast">{{ favorited.value ? '收藏成功' : '已取消收藏' }}</div>
+  <!-- Toast 提示 -->
+  <div v-if="showToast" class="toast">{{ toastText }}</div>
   
   <!-- 关注/取消关注提示 -->
   <div v-if="showFollowToast" class="toast">{{ followToastMessage }}</div>
 
       <div class="comments-section">
+        <!-- 评论输入框 -->
         <div class="add-comment">
-          <input ref="commentInput" v-model="newComment" placeholder="写评论..." @keydown.enter.prevent="addComment" />
-          <button @click="addComment" :disabled="loading">
+          <div v-if="replyingTo" class="reply-preview">
+            <div class="reply-preview-content">
+              <span class="reply-preview-label">回复 {{ replyingTo.author }}:</span>
+              <span class="reply-preview-text">{{ replyingTo.text }}</span>
+              <button class="reply-cancel-btn" @click="cancelReply">取消</button>
+            </div>
+          </div>
+          <input 
+            ref="commentInput" 
+            :value="replyingTo ? replyContent : newComment"
+            @input="replyingTo ? (replyContent = $event.target.value) : (newComment = $event.target.value)"
+            :placeholder="replyingTo ? `回复 ${replyingTo.author}...` : '写评论...'" 
+            @keydown.enter.prevent="replyingTo ? submitReply() : addComment()" 
+          />
+          <button @click="replyingTo ? submitReply() : addComment()" :disabled="loading">
             <span v-if="loading">发布中...</span>
             <span v-else>发布</span>
           </button>
         </div>
         <div v-if="error" class="comment-error" style="color:#ef4444;margin-top:6px">{{ error }}</div>
 
-        <div class="comment" v-for="c in comments" :key="c.id">
-          <div style="display:flex; justify-content:space-between; align-items:center">
-            <div class="comment-author">{{ c.author }}</div>
-            <div class="comment-time" style="color:#9ca3af; font-size:12px">{{ formatTime(c.createdAt) }}</div>
+        <!-- 评论列表 -->
+        <div class="comment-list">
+          <div v-if="comments.length === 0 && !loading" class="no-comments">
+            暂无评论
           </div>
-          <div class="comment-text">{{ c.text }}</div>
+          <div v-for="c in comments" :key="c.id" class="comment">
+            <div class="comment-header">
+              <div class="comment-author-info">
+                <div class="comment-author">{{ c.author }}</div>
+                <div class="comment-time">{{ formatTime(c.createdAt) }}</div>
+              </div>
+              <button 
+                v-if="c.userId === authStore.userId" 
+                class="comment-delete-btn" 
+                @click="handleDeleteComment(c.id)"
+                title="删除评论"
+              >
+                <span class="iconify" data-icon="mdi:delete-outline" data-inline="false"></span>
+              </button>
+            </div>
+            
+            <!-- 引用的父评论 -->
+            <div v-if="c.parentComment" class="comment-quote">
+              <div class="comment-quote-author">{{ c.parentComment.author }}:</div>
+              <div class="comment-quote-text">{{ c.parentComment.text }}</div>
+            </div>
+            
+            <div class="comment-text">{{ c.text }}</div>
+            
+            <div class="comment-actions">
+              <button class="comment-reply-btn" @click="startReply(c)">
+                <span class="iconify" data-icon="mdi:reply-outline" data-inline="false"></span>
+                回复
+              </button>
+            </div>
+            
+            <!-- 回复列表（支持无限层级） -->
+            <div v-if="c.replies && c.replies.length > 0" class="comment-replies">
+              <div v-for="reply in c.replies" :key="reply.id" class="comment-item">
+                <div class="comment-header">
+                  <div class="comment-author-info">
+                    <div class="comment-author">{{ reply.author }}</div>
+                    <div class="comment-time">{{ formatTime(reply.createdAt) }}</div>
+                  </div>
+                  <button 
+                    v-if="reply.userId === authStore.userId" 
+                    class="comment-delete-btn" 
+                    @click="handleDeleteComment(reply.id)"
+                    title="删除评论"
+                  >
+                    <span class="iconify" data-icon="mdi:delete-outline" data-inline="false"></span>
+                  </button>
+                </div>
+                
+                <!-- 引用的父评论 -->
+                <div v-if="reply.parentComment" class="comment-quote">
+                  <div class="comment-quote-author">{{ reply.parentComment.author }}:</div>
+                  <div class="comment-quote-text">{{ reply.parentComment.text }}</div>
+                </div>
+                
+                <div class="comment-text">{{ reply.text }}</div>
+                
+                <div class="comment-actions">
+                  <button class="comment-reply-btn" @click="startReply(reply)">
+                    <span class="iconify" data-icon="mdi:reply-outline" data-inline="false"></span>
+                    回复
+                  </button>
+                </div>
+                
+                <!-- 递归显示更深层的回复 -->
+                <div v-if="reply.replies && reply.replies.length > 0" class="comment-replies">
+                  <div v-for="nestedReply in reply.replies" :key="nestedReply.id" class="comment-item">
+                    <div class="comment-header">
+                      <div class="comment-author-info">
+                        <div class="comment-author">{{ nestedReply.author }}</div>
+                        <div class="comment-time">{{ formatTime(nestedReply.createdAt) }}</div>
+                      </div>
+                      <button 
+                        v-if="nestedReply.userId === authStore.userId" 
+                        class="comment-delete-btn" 
+                        @click="handleDeleteComment(nestedReply.id)"
+                        title="删除评论"
+                      >
+                        <span class="iconify" data-icon="mdi:delete-outline" data-inline="false"></span>
+                      </button>
+                    </div>
+                    
+                    <div v-if="nestedReply.parentComment" class="comment-quote">
+                      <div class="comment-quote-author">{{ nestedReply.parentComment.author }}:</div>
+                      <div class="comment-quote-text">{{ nestedReply.parentComment.text }}</div>
+                    </div>
+                    
+                    <div class="comment-text">{{ nestedReply.text }}</div>
+                    
+                    <div class="comment-actions">
+                      <button class="comment-reply-btn" @click="startReply(nestedReply)">
+                        <span class="iconify" data-icon="mdi:reply-outline" data-inline="false"></span>
+                        回复
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -108,26 +227,106 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted, computed } from 'vue'
+import { ref, onMounted, onUnmounted, computed, provide } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { getPost, getComments, postComment } from '@/api/posts'
+import { getPost, getComments, postComment, deleteComment, likePost, unlikePost } from '@/api/posts'
 import { useAuthStore } from '@/stores/auth'
 import { followUser, unfollowUser } from '@/api/user'
+import { fetchTagDefinitions } from '@/api/tags'
 
 const route = useRoute()
 const router = useRouter()
 const authStore = useAuthStore()
 const id = route.params.id
 
-const post = ref({ author: {}, caption:'', hashtags:'', image:'', likes:0, images: [] })
+// 提供 authStore 给子组件使用
+provide('authStore', authStore)
+
+// 格式化时间函数
+function formatTime(ts) {
+  if (!ts) return ''
+  try {
+    const d = new Date(ts)
+    return d.toLocaleString()
+  } catch (e) {
+    return ts
+  }
+}
+
+const post = ref({ author: {}, caption:'', hashtags:'', image:'', likes:0, images: [], title: '' })
+const tagMap = ref(new Map()) // 标签ID到名称的映射
+
+// 生成文字头像（显示用户名字前两个字）
+function generateTextAvatar(name) {
+  if (!name) return null
+  
+  // 获取名字前两个字
+  const text = name.length >= 2 ? name.substring(0, 2) : name.substring(0, 1)
+  
+  // 创建 canvas 生成头像
+  const canvas = document.createElement('canvas')
+  canvas.width = 80
+  canvas.height = 80
+  const ctx = canvas.getContext('2d')
+  
+  // 生成随机背景色（基于名字的哈希值）
+  const colors = [
+    '#8b5cf6', '#3b82f6', '#10b981', '#f59e0b', 
+    '#ef4444', '#ec4899', '#06b6d4', '#6366f1'
+  ]
+  const hash = name.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0)
+  const bgColor = colors[hash % colors.length]
+  
+  // 绘制背景
+  ctx.fillStyle = bgColor
+  ctx.fillRect(0, 0, canvas.width, canvas.height)
+  
+  // 绘制文字
+  ctx.fillStyle = '#ffffff'
+  ctx.font = 'bold 32px Arial, sans-serif'
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'middle'
+  ctx.fillText(text, canvas.width / 2, canvas.height / 2)
+  
+  return canvas.toDataURL()
+}
+
+// 获取头像 URL（优先使用真实头像，否则生成文字头像）
+function getAvatarUrl(avatar, name) {
+  if (avatar && avatar !== 'https://via.placeholder.com/80') {
+    return avatar
+  }
+  
+  // 如果没有头像，生成文字头像
+  if (name) {
+    return generateTextAvatar(name) || 'https://via.placeholder.com/80'
+  }
+  
+  return 'https://via.placeholder.com/80'
+}
+
+// 处理头像加载错误
+function handleAvatarError(event, name) {
+  // 如果头像加载失败，生成文字头像
+  if (name) {
+    const textAvatar = generateTextAvatar(name)
+    if (textAvatar) {
+      event.target.src = textAvatar
+    }
+  }
+}
 
 // local reactive state for likes/comments
 const likes = ref(0)
 const comments = ref([])
+const totalCommentCount = ref(0) // 总评论数（包括所有回复）
 const favorites = ref(0)
 const newComment = ref('')
 const commentInput = ref(null)
 const currentImageIndex = ref(0)
+const replyingTo = ref(null) // 当前正在回复的评论
+const replyContent = ref('') // 回复内容
+const currentFavoriteId = ref(null) // 当前收藏的ID（用于取消收藏）
 
 // toggleable states
 const liked = ref(false)
@@ -144,6 +343,15 @@ const followingMap = ref(new Map())
 const showFollowToast = ref(false)
 const followToastMessage = ref('')
 
+// Toast 提示
+const showToast = ref(false)
+const toastText = ref('')
+function showToastMessage(message) {
+  toastText.value = message
+  showToast.value = true
+  setTimeout(() => { showToast.value = false }, 1500)
+}
+
 const currentImageSrc = computed(() => {
   if (post.value.images && post.value.images.length) {
     const img = post.value.images[currentImageIndex.value] || post.value.images[0]
@@ -152,36 +360,127 @@ const currentImageSrc = computed(() => {
   return post.value.image || ''
 })
 
-function toggleLike() {
-  if (liked.value) {
-    likes.value = Math.max(0, likes.value - 1)
-    liked.value = false
-  } else {
-    likes.value = likes.value + 1
-    liked.value = true
+// 获取本地点赞状态
+function getLocalLikeStatus(postId) {
+  try {
+    const likes = JSON.parse(localStorage.getItem('userLikes') || '{}')
+    return likes[postId] === true
+  } catch (e) {
+    return false
+  }
+}
+
+// 设置本地点赞状态
+function setLocalLikeStatus(postId, status) {
+  try {
+    const likes = JSON.parse(localStorage.getItem('userLikes') || '{}')
+    if (status) {
+      likes[postId] = true
+    } else {
+      delete likes[postId]
+    }
+    localStorage.setItem('userLikes', JSON.stringify(likes))
+  } catch (e) {
+    console.error('保存点赞状态失败:', e)
+  }
+}
+
+async function toggleLike() {
+  if (!authStore.isAuthenticated) {
+    showToastMessage('请先登录')
+    setTimeout(() => router.push('/login'), 800)
+    return
+  }
+  
+  const userId = authStore.userId
+  if (!userId) {
+    showToastMessage('请先登录')
+    setTimeout(() => router.push('/login'), 800)
+    return
+  }
+  
+  // 允许给自己的帖子点赞（移除限制）
+  const wasLiked = liked.value
+  const wasLikeCount = likes.value
+  
+  try {
+    if (liked.value) {
+      // 取消点赞 - 乐观更新
+      liked.value = false
+      likes.value = Math.max(0, likes.value - 1)
+      await unlikePost(post.value.id, userId)
+      setLocalLikeStatus(post.value.id, false) // 同步到 localStorage
+      showToastMessage('已取消点赞')
+    } else {
+      // 点赞 - 乐观更新
+      liked.value = true
+      likes.value = (likes.value || 0) + 1
+      await likePost(post.value.id, userId)
+      setLocalLikeStatus(post.value.id, true) // 同步到 localStorage
+      showToastMessage('点赞成功')
+    }
+    
+    // 刷新帖子数据以确保数据同步
+    await refreshPostData()
+  } catch (error) {
+    // 恢复状态
+    liked.value = wasLiked
+    likes.value = wasLikeCount
+    console.error('点赞操作失败:', error)
+    showToastMessage('操作失败，请重试')
   }
 }
 
 // 收藏
-const showFavToast = ref(false)
-function toggleFavorite() {
-  if (favorited.value) {
-    favorites.value = Math.max(0, favorites.value - 1)
-    favorited.value = false
-    toastMessage('已取消收藏')
-  } else {
-    favorites.value = (favorites.value || 0) + 1
-    favorited.value = true
-    toastMessage('收藏成功')
+async function toggleFavorite() {
+  if (!authStore.isAuthenticated) {
+    showToastMessage('请先登录')
+    setTimeout(() => router.push('/login'), 800)
+    return
   }
-}
-
-function toastMessage(text) {
-  showFavToast.value = true
-  // 将消息放在模板渲染处
-  const t = document.createElement('div')
-  // 不操作 DOM here — use reactive template showFavToast + message instead
-  setTimeout(() => { showFavToast.value = false }, 1200)
+  
+  const userId = authStore.userId
+  if (!userId) {
+    showToastMessage('请先登录')
+    setTimeout(() => router.push('/login'), 800)
+    return
+  }
+  
+  const wasFavorited = favorited.value
+  const wasFavoriteCount = favorites.value
+  const wasFavoriteId = currentFavoriteId.value
+  
+  try {
+    if (favorited.value) {
+      // 取消收藏 - 乐观更新
+      favorited.value = false
+      favorites.value = Math.max(0, favorites.value - 1)
+      
+      if (currentFavoriteId.value) {
+        await removePostFromFavorites(currentFavoriteId.value)
+        currentFavoriteId.value = null
+      }
+      setLocalFavoriteStatus(post.value.id, false) // 同步到 localStorage
+      showToastMessage('已取消收藏')
+    } else {
+      // 收藏 - 乐观更新，使用默认收藏夹（folderId = 1）
+      favorited.value = true
+      favorites.value = (favorites.value || 0) + 1
+      await addPostToFavorites(userId, post.value.id, 1)
+      setLocalFavoriteStatus(post.value.id, true) // 同步到 localStorage
+      showToastMessage('收藏成功')
+    }
+    
+    // 刷新帖子数据以确保数据同步
+    await refreshPostData()
+  } catch (error) {
+    // 恢复状态
+    favorited.value = wasFavorited
+    favorites.value = wasFavoriteCount
+    currentFavoriteId.value = wasFavoriteId
+    console.error('收藏操作失败:', error)
+    showToastMessage('操作失败，请重试')
+  }
 }
 
 // 用户菜单相关函数
@@ -196,6 +495,11 @@ function hideUserMenu() {
 }
 
 function goToUserDetail(userId) {
+  if (!userId) {
+    console.error('用户ID为空，无法跳转到用户详情页')
+    return
+  }
+  console.log('跳转到用户详情页，用户ID:', userId)
   router.push({ name: 'user', params: { id: userId } })
 }
 
@@ -239,35 +543,247 @@ async function toggleFollow(userId) {
 
 function addComment() {
   if (!newComment.value.trim()) return
-  // post comment to backend
+  if (!authStore.isAuthenticated) {
+    alert('请先登录')
+    router.push('/login')
+    return
+  }
+  
   const content = newComment.value.trim()
   const userId = authStore.userId
   const payload = {
     postId: id,
     userId: userId,
     content,
-    // parentId should be null for top-level comments to avoid FK constraint failure
     parentId: null
   }
   loading.value = true
-  postComment(id, payload).then(res => {
-    // after posting, reload comments
+  error.value = ''
+  postComment(id, payload).then(async res => {
     newComment.value = ''
-    loadComments()
+    await loadComments()
+    // 评论数会自动更新，因为模板中使用 comments.length
+    // 但为了确保首页也能更新，我们需要重新加载帖子详情
+    // 这里先不处理，因为首页的更新需要事件机制
   }).catch(err => {
     error.value = err.message || '发表评论失败'
   }).finally(() => {
     loading.value = false
-    // list is newest-first, ensure view shows top (newest) comment below input
     setTimeout(() => { const el = document.querySelector('.comments-section'); if (el) el.scrollTop = 0 }, 100)
   })
 }
 
+// 开始回复评论
+function startReply(comment) {
+  if (!authStore.isAuthenticated) {
+    alert('请先登录')
+    router.push('/login')
+    return
+  }
+  replyingTo.value = comment
+  replyContent.value = ''
+  // 聚焦到输入框
+  setTimeout(() => {
+    commentInput.value?.focus()
+  }, 100)
+}
+
+// 取消回复
+function cancelReply() {
+  replyingTo.value = null
+  replyContent.value = ''
+}
+
+// 提交回复
+function submitReply() {
+  if (!replyContent.value.trim() || !replyingTo.value) return
+  
+  const content = replyContent.value.trim()
+  const userId = authStore.userId
+  // 确保 parentId 是数字类型
+  const parentId = typeof replyingTo.value.id === 'string' ? parseInt(replyingTo.value.id) : replyingTo.value.id
+  
+  console.log('提交回复 - postId:', id, 'userId:', userId, 'parentId:', parentId, 'content:', content)
+  console.log('replyingTo.value:', replyingTo.value)
+  console.log('replyingTo.value.id 类型:', typeof replyingTo.value.id, '值:', replyingTo.value.id)
+  
+  // 注意：不要包含 postId，后端从路径参数获取
+  const payload = {
+    userId: userId,
+    content: content,
+    parentId: parentId // 设置父评论ID，必须是数字或 null
+  }
+  
+  console.log('发送的 payload:', JSON.stringify(payload))
+  
+  loading.value = true
+  error.value = ''
+  postComment(id, payload).then(res => {
+    console.log('回复成功，响应:', res)
+    replyContent.value = ''
+    replyingTo.value = null
+    // 重新加载评论以显示新的回复
+    loadComments()
+  }).catch(err => {
+    console.error('回复失败:', err)
+    error.value = err.message || '回复失败'
+  }).finally(() => {
+    loading.value = false
+    setTimeout(() => { const el = document.querySelector('.comments-section'); if (el) el.scrollTop = 0 }, 100)
+  })
+}
+
+// 删除评论
+async function handleDeleteComment(commentId) {
+  if (!authStore.isAuthenticated) {
+    alert('请先登录')
+    return
+  }
+  
+  if (!confirm('确定要删除这条评论吗？')) {
+    return
+  }
+  
+  try {
+    loading.value = true
+    error.value = ''
+    
+    console.log('删除评论 - postId:', id, 'commentId:', commentId)
+    
+    // 先尝试删除评论
+    try {
+      const response = await deleteComment(id, commentId)
+      console.log('删除评论响应:', response, '类型:', typeof response)
+      
+      // 后端返回的格式是 R<String>，经过 request.js 处理后：
+      // - 如果 code === 200 且 data 是字符串，返回字符串 "评论删除成功"
+      // - 如果 code === 200 且 data 是 null/undefined，返回整个 res 对象
+      // - 如果 code !== 200，抛出错误
+      // 所以如果到这里没有抛出错误，说明删除成功
+      if (typeof response === 'string' && response.includes('删除成功')) {
+        console.log('删除成功，消息:', response)
+      } else if (response && typeof response === 'object' && response.message) {
+        console.log('删除成功，消息:', response.message)
+      } else {
+        console.log('删除成功（响应格式:', typeof response, ')')
+      }
+      error.value = ''
+    } catch (deleteErr) {
+      console.error('删除评论API调用失败:', deleteErr)
+      console.error('错误对象:', deleteErr)
+      console.error('错误消息:', deleteErr.message)
+      console.error('错误响应:', deleteErr.response)
+      console.error('错误httpData:', deleteErr.httpData)
+      
+      // 检查错误消息
+      const errorMessage = deleteErr.message || deleteErr.httpData?.message || deleteErr.response?.data?.message || '删除评论失败'
+      console.error('最终错误消息:', errorMessage)
+      
+      // 如果错误消息包含 "no messages available"，可能是响应处理的问题
+      // 但这种情况不应该发生，因为 DELETE 请求应该返回 R<String>
+      if (errorMessage.toLowerCase().includes('no messages available') || 
+          errorMessage.toLowerCase().includes('messages available')) {
+        // 可能是响应格式问题，但删除可能已经成功，尝试重新加载评论
+        console.log('检测到 "no messages available" 错误，可能是响应处理问题，尝试重新加载评论')
+        // 不显示错误，继续执行重新加载
+      } else {
+        // 其他错误，显示错误消息并停止
+        error.value = errorMessage
+        loading.value = false
+        return
+      }
+    }
+    
+    // 无论删除API是否报错，都尝试重新加载评论列表
+    // 因为删除可能已经成功，只是响应处理有问题
+    try {
+      await loadComments()
+      console.log('评论列表重新加载成功')
+      error.value = '' // 清除错误
+    } catch (loadErr) {
+      console.error('重新加载评论失败:', loadErr)
+      // 如果加载失败，检查是否是 "no messages available" 错误
+      const loadErrorMessage = loadErr.message || loadErr.response?.data?.message || ''
+      if (loadErrorMessage.toLowerCase().includes('no messages available') || 
+          loadErrorMessage.toLowerCase().includes('messages available')) {
+        // 这可能是正常的（评论列表为空），不显示错误
+        error.value = ''
+      } else {
+        error.value = '删除成功，但刷新评论列表失败: ' + loadErrorMessage
+      }
+    }
+  } catch (err) {
+    console.error('删除评论异常:', err)
+    error.value = err.message || '删除评论失败'
+  } finally {
+    loading.value = false
+  }
+}
+
 function focusCommentInput() { commentInput.value?.focus() }
+
+// 加载标签映射
+async function loadTagMap() {
+  try {
+    const tags = await fetchTagDefinitions({ type: 'post' })
+    const map = new Map()
+    tags.forEach(tag => {
+      const tagId = tag.tagId || tag.id || tag.tag_id
+      const tagName = tag.name || tag.tagName || tag.tag_name
+      if (tagId && tagName) {
+        map.set(tagId, tagName)
+      }
+    })
+    tagMap.value = map
+  } catch (e) {
+    console.error('加载标签失败:', e)
+  }
+}
+
+// 将标签ID数组转换为标签名称字符串，每个标签前面加井号
+function formatTags(tagIds) {
+  if (!Array.isArray(tagIds) || tagIds.length === 0) {
+    return ''
+  }
+  return tagIds.map(tagId => {
+    const tagName = tagMap.value.get(tagId)
+    const displayName = tagName || `标签${tagId}`
+    return `#${displayName}`
+  }).join(' ')
+}
+
+// 刷新帖子数据（用于点赞/收藏后同步）
+async function refreshPostData() {
+  try {
+    const res = await getPost(id)
+    const data = res && res.id ? res : (res?.data ? res.data : res)
+    
+    // 更新点赞和收藏数据
+    if (data.likeCount !== undefined) {
+      likes.value = data.likeCount
+    }
+    if (data.favoriteCount !== undefined) {
+      favorites.value = data.favoriteCount
+    }
+    if (data.isLiked !== undefined) {
+      liked.value = data.isLiked
+    }
+    if (data.isFavorited !== undefined) {
+      favorited.value = data.isFavorited
+      currentFavoriteId.value = data.favoriteId ?? null
+    }
+  } catch (error) {
+    console.error('刷新帖子数据失败:', error)
+    // 不显示错误，静默失败
+  }
+}
 
 async function loadPost() {
   loading.value = true
   try {
+    // 先加载标签映射
+    await loadTagMap()
+    
     const res = await getPost(id)
     const data = res && res.id ? res : (res?.data ? res.data : res)
     // map backend fields to view
@@ -284,18 +800,28 @@ async function loadPost() {
     const firstImage = normalizedImages.length
       ? normalizedImages[0].url || normalizedImages[0].data
       : null
+    
+    // 处理标签：将ID转换为名称
+    const tagIds = Array.isArray(data.tags) ? data.tags : []
+    const hashtags = formatTags(tagIds)
+    
+    // 确保用户ID正确设置
+    const authorId = data.userId ?? data.user_id ?? author.id ?? author.userId ?? author.user_id ?? null
+    console.log('PostDetail - 设置作者ID:', authorId, 'data.userId:', data.userId, 'data:', data)
+    
     post.value = {
       id: data.id ?? data._id ?? data.postId,
       author: {
-        id: data.userId ?? author.id ?? author.userId ?? author.user_id ?? data.user_id ?? null,
-        avatar: data.avatarUrl || author.avatar || author.photo || author.image || author.avatarUrl || 'https://via.placeholder.com/80',
+        id: authorId, // 使用明确的userId字段
+        avatar: data.avatarUrl || author.avatar || author.photo || author.image || author.avatarUrl || null,
         name: data.nickname || author.nickname || data.username || author.name || author.username || '匿名',
         handle: data.username || author.handle || author.username || (data.nickname ? data.nickname.replace(/\s+/g, '') : (author.nickname ? author.nickname.replace(/\s+/g, '') : ''))
       },
       time: data.createdAt ? new Date(data.createdAt).toLocaleString() : (data.time || ''),
       location: data.location || '',
-      caption: data.topic || data.title || data.content || data.caption || '',
-      hashtags: Array.isArray(data.tags) ? data.tags.join(' ') : (data.tags || ''),
+      caption: data.content || data.caption || '', // 详情页显示内容，不显示标题
+      title: data.topic || data.title || '', // 保存标题用于显示
+      hashtags: hashtags, // 使用转换后的标签名称
       image: firstImage,
       likes: data.likes ?? data.likeCount ?? 0,
       favorites: data.favorites ?? data.favoriteCount ?? data.bookmarks ?? 0,
@@ -303,7 +829,13 @@ async function loadPost() {
     }
     currentImageIndex.value = 0
     likes.value = post.value.likes
-    favorites.value = post.value.favorites || 0
+    favorites.value = data.favoriteCount ?? data.favorites ?? data.bookmarks ?? 0
+    
+    // 设置点赞和收藏状态
+    liked.value = data.isLiked ?? false
+    favorited.value = data.isFavorited ?? false
+    currentFavoriteId.value = data.favoriteId ?? null
+    
     // load comments
     await loadComments()
   } catch (e) {
@@ -316,32 +848,99 @@ async function loadPost() {
 async function loadComments() {
   try {
     const res = await getComments(id)
-    const arr = Array.isArray(res) ? res : (res?.data && Array.isArray(res.data) ? res.data : [])
-    comments.value = arr.map(c => ({ 
-      id: c.commentId ?? c.comment_id ?? c.id ?? c._id, 
-      author: c.nickname || c.userName || c.authorName || (c.user && (c.user.nickname || c.user.name)) || c.username || '匿名', 
-      text: c.content || c.text || '', 
-      createdAt: c.created_at ?? c.createdAt 
-    }))
-      // sort newest first so they appear directly below the input
-      .sort((a, b) => {
-        const ta = a.createdAt ? new Date(a.createdAt).getTime() : 0
-        const tb = b.createdAt ? new Date(b.createdAt).getTime() : 0
-        return tb - ta
-      })
+    console.log('获取评论响应:', res)
+    
+    // 处理不同的响应格式
+    let arr = []
+    if (Array.isArray(res)) {
+      arr = res
+    } else if (res?.data && Array.isArray(res.data)) {
+      arr = res.data
+    } else if (res && typeof res === 'object') {
+      // 可能是单个对象或其他格式
+      console.warn('评论响应格式异常:', res)
+      arr = []
+    }
+    
+    console.log('加载评论，原始数据:', arr)
+    
+    // 构建评论映射和树结构（支持无限层级）
+    const commentMap = new Map() // commentId -> comment
+    const topLevelComments = []
+    const repliesMap = new Map() // parentId -> [replies]
+    
+    // 第一步：构建所有评论对象并建立映射
+    arr.forEach(c => {
+      const commentId = c.commentId ?? c.comment_id ?? c.id ?? c._id
+      const parentId = c.parentId ?? c.parent_id ?? null
+      
+      const comment = {
+        id: commentId,
+        userId: c.userId ?? c.user_id,
+        author: c.nickname || c.userName || c.authorName || (c.user && (c.user.nickname || c.user.name)) || c.username || '匿名',
+        text: c.content || c.text || '',
+        createdAt: c.created_at ?? c.createdAt,
+        parentId: parentId,
+        parentComment: null,
+        replies: [] // 初始化回复列表
+      }
+      
+      commentMap.set(commentId, comment)
+      
+      if (parentId) {
+        // 这是回复
+        if (!repliesMap.has(parentId)) {
+          repliesMap.set(parentId, [])
+        }
+        repliesMap.get(parentId).push(comment)
+      } else {
+        // 这是顶级评论
+        topLevelComments.push(comment)
+      }
+    })
+    
+    // 第二步：为每个评论查找父评论信息（用于显示引用）
+    commentMap.forEach((comment, commentId) => {
+      if (comment.parentId) {
+        const parentComment = commentMap.get(comment.parentId)
+        if (parentComment) {
+          comment.parentComment = {
+            id: parentComment.id,
+            author: parentComment.author,
+            text: parentComment.text
+          }
+        }
+      }
+    })
+    
+    // 第三步：为每个评论设置回复列表（支持无限层级）
+    repliesMap.forEach((replies, parentId) => {
+      const parentComment = commentMap.get(parentId)
+      if (parentComment) {
+        // 按时间正序排列回复
+        parentComment.replies = replies.sort((a, b) => {
+          const ta = a.createdAt ? new Date(a.createdAt).getTime() : 0
+          const tb = b.createdAt ? new Date(b.createdAt).getTime() : 0
+          return ta - tb
+        })
+      }
+    })
+    
+    // 评论树结构已构建完成
+    
+    // 排序：最新的在前
+    comments.value = topLevelComments.sort((a, b) => {
+      const ta = a.createdAt ? new Date(a.createdAt).getTime() : 0
+      const tb = b.createdAt ? new Date(b.createdAt).getTime() : 0
+      return tb - ta
+    })
+    
+    // 计算总评论数（包括所有回复）
+    totalCommentCount.value = commentMap.size
+    console.log('总评论数（包括回复）:', totalCommentCount.value)
   } catch (e) {
-    // if comments endpoint not available, keep comments empty
+    console.error('加载评论失败:', e)
     comments.value = []
-  }
-}
-
-function formatTime(ts) {
-  if (!ts) return ''
-  try {
-    const d = new Date(ts)
-    return d.toLocaleString()
-  } catch (e) {
-    return ts
   }
 }
 
@@ -527,11 +1126,137 @@ onMounted(() => {
 }
 .post-interact { display:flex; gap:12px; margin-top:12px }
 .like-btn, .comment-btn { padding:8px 12px; border-radius:8px; border:1px solid #e5e7eb; background:#fff; cursor:pointer }
-.comments-section { margin-top:16px; max-height:300px; overflow:auto }
-.comment { padding:8px 0; border-bottom:1px solid #f3f4f6 }
-.add-comment { display:flex; gap:8px; margin-top:8px }
+.comments-section { margin-top:16px; max-height:500px; overflow:auto }
+.comment-list { margin-top:12px }
+.comment { padding:12px 0; border-bottom:1px solid #f3f4f6 }
+.comment:last-child { border-bottom:none }
+.comment-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:6px }
+.comment-author-info { display:flex; align-items:center; gap:8px }
+.comment-author { font-weight:600; color:#374151; font-size:14px }
+.comment-time { color:#9ca3af; font-size:12px }
+.comment-text { color:#4b5563; font-size:14px; line-height:1.5; margin:6px 0 }
+.comment-actions { margin-top:8px }
+.comment-reply-btn { 
+  display:inline-flex; 
+  align-items:center; 
+  gap:4px; 
+  padding:4px 8px; 
+  background:transparent; 
+  border:none; 
+  color:#6b7280; 
+  font-size:12px; 
+  cursor:pointer;
+  border-radius:4px;
+  transition:all 0.2s
+}
+.comment-reply-btn:hover { 
+  background:#f3f4f6; 
+  color:#374151 
+}
+.comment-delete-btn {
+  padding:4px;
+  background:transparent;
+  border:none;
+  color:#ef4444;
+  cursor:pointer;
+  opacity:0.6;
+  transition:opacity 0.2s;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+}
+.comment-delete-btn:hover {
+  opacity:1;
+}
+.comment-quote {
+  background:#f9fafb;
+  border-left:3px solid #e5e7eb;
+  padding:8px 12px;
+  margin:8px 0;
+  border-radius:4px;
+}
+.comment-quote-author {
+  font-weight:600;
+  color:#6b7280;
+  font-size:12px;
+  margin-bottom:4px;
+}
+.comment-quote-text {
+  color:#9ca3af;
+  font-size:12px;
+  line-height:1.4;
+}
+.comment-replies {
+  margin-left:24px;
+  margin-top:12px;
+  padding-left:16px;
+  border-left:2px solid #e5e7eb;
+}
+.comment-item {
+  padding:8px 0;
+  border-bottom:1px solid #f3f4f6;
+}
+.comment-item:last-child {
+  border-bottom:none;
+}
+.comment-reply {
+  padding:8px 0;
+  border-bottom:1px solid #f3f4f6;
+}
+.comment-reply:last-child {
+  border-bottom:none;
+}
+.add-comment { display:flex; flex-direction:column; gap:8px; margin-top:8px }
+.reply-preview {
+  background:#f3f4f6;
+  border-radius:8px;
+  padding:8px 12px;
+  margin-bottom:8px;
+}
+.reply-preview-content {
+  display:flex;
+  align-items:center;
+  gap:8px;
+  flex-wrap:wrap;
+}
+.reply-preview-label {
+  font-weight:600;
+  color:#6b7280;
+  font-size:12px;
+}
+.reply-preview-text {
+  flex:1;
+  color:#9ca3af;
+  font-size:12px;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+.reply-cancel-btn {
+  padding:4px 8px;
+  background:transparent;
+  border:1px solid #e5e7eb;
+  border-radius:4px;
+  color:#6b7280;
+  font-size:12px;
+  cursor:pointer;
+}
+.reply-cancel-btn:hover {
+  background:#fff;
+  border-color:#d1d5db;
+}
 .add-comment input { flex:1; padding:8px; border-radius:8px; border:1px solid #e5e7eb }
-.add-comment button { padding:8px 12px; border-radius:8px; background:#8b5cf6; color:#fff; border:none }
+.add-comment > div:last-child { display:flex; gap:8px }
+.add-comment button { padding:8px 12px; border-radius:8px; background:#8b5cf6; color:#fff; border:none; cursor:pointer }
+.add-comment button:disabled { opacity:0.6; cursor:not-allowed }
+.comment-error { color:#ef4444; margin-top:6px; font-size:12px }
+.no-comments {
+  text-align: center;
+  color: #9ca3af;
+  font-size: 14px;
+  padding: 24px;
+  margin-top: 12px;
+}
 
 .fav-btn { padding:8px 12px; border-radius:8px; border:1px solid #e5e7eb; background:#fff; cursor:pointer; margin-left:8px }
 .fav-btn .iconify { margin-right:6px }

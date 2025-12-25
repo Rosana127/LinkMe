@@ -72,13 +72,25 @@ export function getComments(postId) {
 /**
  * 创建评论
  * @param {Number|String} postId
- * @param {Object} commentData
+ * @param {Object} commentData { userId, content, parentId? }
  */
 export function postComment(postId, commentData) {
   return request({
     url: `/posts/${postId}/comments`,
     method: 'post',
     data: commentData
+  })
+}
+
+/**
+ * 删除评论
+ * @param {Number|String} postId
+ * @param {Number|String} commentId
+ */
+export function deleteComment(postId, commentId) {
+  return request({
+    url: `/posts/${postId}/comments/${commentId}`,
+    method: 'delete'
   })
 }
 
@@ -128,6 +140,7 @@ const postsApi = {
   getPost,
   getComments,
   postComment,
+  deleteComment,
   likePost,
   unlikePost
 }

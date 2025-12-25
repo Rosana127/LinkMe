@@ -95,9 +95,10 @@
             <!-- 用户头像 -->
             <div class="user-avatar-container">
               <img 
-                :src="post.author.avatar" 
+                :src="getAvatarUrl(post.author.avatar, post.author.name)" 
                 :alt="post.author.name" 
                 class="user-avatar"
+                @error="handleAvatarError($event, post.author.name)"
               >
             </div>
             <div class="user-details">
@@ -117,14 +118,7 @@
           <div class="hashtags">{{ post.hashtags }}</div>
         </div>
         
-        <!-- 图片 -->
-        <div class="post-image" v-if="post.image">
-          <img 
-            :src="post.image" 
-            :alt="post.caption" 
-            class="w-full rounded-lg"
-          >
-        </div>
+        <!-- 图片：首页不显示图片，只在详情页显示 -->
         
         <!-- 互动按钮 -->
         <div class="post-actions">
@@ -170,6 +164,7 @@ import { useAuthStore } from '@/stores/auth'
 import { getPosts, likePost, unlikePost } from '@/api/posts'
 import { getFavoriteFolders, createFavoriteFolder, addPostToFavorites } from '@/api/favorites'
 import { followUser, unfollowUser } from '@/api/user'
+import { fetchTagDefinitions } from '@/api/tags'
 
 const authStore = useAuthStore()
 const isAuthenticated = computed(() => authStore.isAuthenticated)
@@ -203,6 +198,69 @@ const selectedUser = ref(null)
 // 关注状态管理
 const followingMap = ref(new Map())
 
+// 标签映射
+const tagMap = ref(new Map()) // 标签ID到名称的映射
+
+// 生成文字头像（显示用户名字前两个字）
+function generateTextAvatar(name) {
+  if (!name) return null
+  
+  // 获取名字前两个字
+  const text = name.length >= 2 ? name.substring(0, 2) : name.substring(0, 1)
+  
+  // 创建 canvas 生成头像
+  const canvas = document.createElement('canvas')
+  canvas.width = 80
+  canvas.height = 80
+  const ctx = canvas.getContext('2d')
+  
+  // 生成随机背景色（基于名字的哈希值）
+  const colors = [
+    '#8b5cf6', '#3b82f6', '#10b981', '#f59e0b', 
+    '#ef4444', '#ec4899', '#06b6d4', '#6366f1'
+  ]
+  const hash = name.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0)
+  const bgColor = colors[hash % colors.length]
+  
+  // 绘制背景
+  ctx.fillStyle = bgColor
+  ctx.fillRect(0, 0, canvas.width, canvas.height)
+  
+  // 绘制文字
+  ctx.fillStyle = '#ffffff'
+  ctx.font = 'bold 32px Arial, sans-serif'
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'middle'
+  ctx.fillText(text, canvas.width / 2, canvas.height / 2)
+  
+  return canvas.toDataURL()
+}
+
+// 获取头像 URL（优先使用真实头像，否则生成文字头像）
+function getAvatarUrl(avatar, name) {
+  if (avatar && avatar !== 'https://via.placeholder.com/80') {
+    return avatar
+  }
+  
+  // 如果没有头像，生成文字头像
+  if (name) {
+    return generateTextAvatar(name) || 'https://via.placeholder.com/80'
+  }
+  
+  return 'https://via.placeholder.com/80'
+}
+
+// 处理头像加载错误
+function handleAvatarError(event, name) {
+  // 如果头像加载失败，生成文字头像
+  if (name) {
+    const textAvatar = generateTextAvatar(name)
+    if (textAvatar) {
+      event.target.src = textAvatar
+    }
+  }
+}
+
 // 本地存储状态管理（localStorage）
 function getLocalLikeStatus(postId) {
   if (!isAuthenticated.value) return false
@@ -228,26 +286,84 @@ function setLocalFavoriteStatus(postId, status) {
   localStorage.setItem('userFavorites', JSON.stringify(favorites))
 }
 
+// 辅助函数：将Base64字符串转换为可用的图片URL
+function formatImageUrl(imgString) {
+  if (!imgString) return null
+  // 如果已经是完整的data URL，直接返回
+  if (imgString.startsWith('data:image')) {
+    return imgString
+  }
+  // 如果是Base64字符串，添加前缀
+  if (typeof imgString === 'string' && imgString.length > 0) {
+    // 检查是否已经是Base64格式（不包含data:前缀）
+    if (!imgString.startsWith('http://') && !imgString.startsWith('https://') && !imgString.startsWith('data:')) {
+      // 假设是JPEG格式，如果需要可以检测实际格式
+      return `data:image/jpeg;base64,${imgString}`
+    }
+    return imgString
+  }
+  return null
+}
+
+// 加载标签映射
+async function loadTagMap() {
+  try {
+    const tags = await fetchTagDefinitions({ type: 'post' })
+    const map = new Map()
+    tags.forEach(tag => {
+      const tagId = tag.tagId || tag.id || tag.tag_id
+      const tagName = tag.name || tag.tagName || tag.tag_name
+      if (tagId && tagName) {
+        map.set(tagId, tagName)
+      }
+    })
+    tagMap.value = map
+  } catch (e) {
+    console.error('加载标签失败:', e)
+  }
+}
+
+// 将标签ID数组转换为标签名称字符串，每个标签前面加井号
+function formatTags(tagIds) {
+  if (!Array.isArray(tagIds) || tagIds.length === 0) {
+    return ''
+  }
+  return tagIds.map(tagId => {
+    const tagName = tagMap.value.get(tagId)
+    const displayName = tagName || `标签${tagId}`
+    return `#${displayName}`
+  }).join(' ')
+}
+
 // 数据映射
 function mapBackendToView(raw) {
   const author = raw.user || raw.author || raw.creator || {}
   const images = Array.isArray(raw.images) ? raw.images : (raw.images ? [raw.images] : [])
-  const firstImage = images.length ? (typeof images[0] === 'string' ? images[0] : (images[0].url || images[0].path || images[0].data || null)) : null
+  // 处理第一张图片，支持Base64格式
+  let firstImage = null
+  if (images.length > 0) {
+    const img = images[0]
+    if (typeof img === 'string') {
+      firstImage = formatImageUrl(img)
+    } else if (img && (img.url || img.path || img.data)) {
+      firstImage = formatImageUrl(img.url || img.path || img.data)
+    }
+  }
   const postId = raw.postId ?? raw.id ?? raw._id
   
   return {
     id: postId,
     author: {
       id: author.id || author.userId || author.user_id || raw.authorId || raw.createdBy || raw.owner || null,
-      avatar: raw.avatarUrl || author.avatar || author.photo || author.image || author.avatarUrl || 'https://via.placeholder.com/80',
+      avatar: raw.avatarUrl || author.avatar || author.photo || author.image || author.avatarUrl || null,
       name: raw.nickname || author.nickname || raw.username || author.name || author.username || '匿名',
       handle: raw.username || author.handle || author.username || (raw.nickname ? raw.nickname.replace(/\s+/g, '') : (author.nickname ? author.nickname.replace(/\s+/g, '') : '')),
       isFollowed: raw.isFollowed || false
     },
     time: raw.createdAt ? new Date(raw.createdAt).toLocaleString() : (raw.time || ''),
     location: raw.location || '',
-    caption: raw.topic || raw.title || raw.content || raw.caption || '',
-    hashtags: Array.isArray(raw.tags) ? raw.tags.join(' ') : (raw.tags || ''),
+    caption: raw.topic || raw.title || raw.caption || '', // 首页显示标题，不显示内容
+    hashtags: formatTags(Array.isArray(raw.tags) ? raw.tags : (raw.tags ? [raw.tags] : [])), // 将标签ID转换为名称
     image: firstImage,
     likeCount: raw.likeCount ?? raw.likes ?? 0,
     liked: isAuthenticated.value ? getLocalLikeStatus(postId) : false,
@@ -263,13 +379,31 @@ async function loadExplore() {
   error.value = ''
   try {
     const res = await getPosts()
+    console.log('[DiscoverPage] API响应:', res)
     const arr = Array.isArray(res) ? res : (res?.data && Array.isArray(res.data) ? res.data : [])
+    console.log('[DiscoverPage] 解析后的帖子数组:', arr)
     allPosts.value = arr.map(mapBackendToView)
     recommendedPosts.value = allPosts.value
     followingPosts.value = allPosts.value.filter(p => p.author && p.author.isFollowed)
+    console.log('[DiscoverPage] 映射后的帖子:', allPosts.value)
   } catch (e) {
-    console.error('加载探索帖子失败', e)
-    if (e.message && !e.message.includes('401') && !e.message.includes('未授权')) {
+    console.error('[DiscoverPage] 加载探索帖子失败', {
+      error: e,
+      message: e.message,
+      stack: e.stack,
+      response: e.response,
+      request: e.request
+    })
+    // 显示更详细的错误信息
+    if (e.message) {
+      if (e.message.includes('401') || e.message.includes('未授权')) {
+        error.value = '请先登录'
+      } else if (e.message.includes('网络连接失败') || e.message.includes('ERR_CONNECTION_REFUSED')) {
+        error.value = '无法连接到服务器，请检查后端服务是否运行'
+      } else {
+        error.value = `加载失败: ${e.message}`
+      }
+    } else {
       error.value = '加载失败，请稍后重试'
     }
     allPosts.value = []
@@ -520,7 +654,9 @@ watch(isAuthenticated, (newVal) => {
 })
 
 // 初始化
-onMounted(() => {
+onMounted(async () => {
+  // 先加载标签映射，然后再加载帖子
+  await loadTagMap()
   loadExplore()
   if (isAuthenticated.value) {
     loadFavoriteFolders()

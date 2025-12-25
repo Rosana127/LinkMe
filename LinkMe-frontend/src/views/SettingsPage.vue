@@ -472,6 +472,13 @@ async function saveProfile() {
     }
 
     const payload = utilBuildUpdatePayload(editForm.value)
+    console.log('构建的更新 payload:', JSON.stringify(payload, null, 2))
+    console.log('editForm.value:', {
+      nickname: editForm.value.nickname,
+      bio: editForm.value.bio,
+      avatar: editForm.value.avatar ? '有头像数据（长度: ' + editForm.value.avatar.length + '）' : '无头像数据'
+    })
+    
     if (Object.keys(payload).length === 0) {
       saveMessage.value = '没有可保存的更改'
       return
@@ -500,9 +507,25 @@ async function saveProfile() {
     }, 1500)
   } catch (error) {
     console.error('保存失败:', error)
+    console.error('错误对象完整信息:', JSON.stringify(error, null, 2))
+    console.error('错误响应数据:', error.response?.data)
+    console.error('错误请求数据:', error.config?.data)
     const serverMessage = utilExtractServerMessage(error)
     console.error('后端错误详情（可能包含字段级信息）：', error.httpData || error.response?.data || error)
-    saveMessage.value = '保存失败: ' + (serverMessage || '用户信息更新失败')
+    
+    // 显示更详细的错误信息
+    let errorMsg = '保存失败: '
+    if (serverMessage && serverMessage !== '用户信息更新失败') {
+      errorMsg += serverMessage
+    } else if (error.response?.data?.message) {
+      errorMsg += error.response.data.message
+    } else if (error.message) {
+      errorMsg += error.message
+    } else {
+      errorMsg += '用户信息更新失败，请查看控制台获取详细信息'
+    }
+    
+    saveMessage.value = errorMsg
     saveError.value = true
   } finally {
     saving.value = false

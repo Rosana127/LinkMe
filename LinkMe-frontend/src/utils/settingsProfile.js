@@ -21,11 +21,22 @@ export function parseJwtPayload(token) {
 export function buildUpdatePayload(form) {
   const data = {
     nickname: form.nickname?.trim() || undefined,
-    bio: form.bio?.trim() || undefined
+    bio: form.bio?.trim() || undefined,
+    avatarUrl: form.avatar || undefined // 将 avatar 映射为 avatarUrl
   }
   for (const k of Object.keys(data)) {
     const v = data[k]
-    if (v === undefined || (typeof v === 'string' && v.trim() === '')) delete data[k]
+    // 对于 avatarUrl，只要不是 undefined 且不是空字符串，就保留（base64 字符串应该保留）
+    if (k === 'avatarUrl') {
+      if (v === undefined || (typeof v === 'string' && v.trim() === '')) {
+        delete data[k]
+      }
+    } else {
+      // 对于其他字段，空字符串应该被删除
+      if (v === undefined || (typeof v === 'string' && v.trim() === '')) {
+        delete data[k]
+      }
+    }
   }
   return data
 }
