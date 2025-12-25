@@ -1,4 +1,4 @@
-import request from './request'
+import request from "./request";
 
 /**
  * 创建帖子
@@ -8,31 +8,29 @@ export function createPost(postData) {
   // 后端示例期望: { userId, content, images: [string], tags: [...] }
   // 我们会将前端的 images (data URLs) 和 tags 原样发送
   return request({
-    url: '/posts',
-    method: 'post',
-    data: postData
-  })
+    url: "/posts",
+    method: "post",
+    data: postData,
+  });
 }
 
 /**
- * 获取某个用户的帖子列表（后端可能是 /user/:id/posts 或 /posts?userId=）
- * 我们先尝试 /user/{userId}/posts，然后降级到 /posts?userId=
+ * 获取某个用户的帖子列表
+ * 后端端点：GET /posts?userId={userId}
  * @param {Number} userId
  */
 export async function getUserPosts(userId) {
   try {
-    // 先试试 RESTful 风格的用户帖子接口
-    const res1 = await request({ url: `/user/${userId}/posts`, method: 'get' })
-    return Array.isArray(res1) ? res1 : (res1?.data || [])
+    const res = await request({
+      url: `/posts`,
+      method: "get",
+      params: { userId },
+    });
+    return Array.isArray(res) ? res : res?.data || [];
   } catch (e) {
-    // 如果第一个接口不存在，再尝试带查询参数的通用接口
-    try {
-      const res2 = await request({ url: `/posts`, method: 'get', params: { userId } })
-      return Array.isArray(res2) ? res2 : (res2?.data || [])
-    } catch (err) {
-      // 最终抛出错误给调用者，让调用者可以回退到 localStorage
-      throw err
-    }
+    // 如果请求失败，抛出错误给调用者处理
+    console.error("[getUserPosts] 获取用户帖子失败:", e);
+    throw e;
   }
 }
 
@@ -43,8 +41,8 @@ export async function getUserPosts(userId) {
 export function deletePost(postId) {
   return request({
     url: `/posts/${postId}`,
-    method: 'delete'
-  })
+    method: "delete",
+  });
 }
 
 /**
@@ -54,8 +52,8 @@ export function deletePost(postId) {
 export function getPost(postId) {
   return request({
     url: `/posts/${postId}`,
-    method: 'get'
-  })
+    method: "get",
+  });
 }
 
 /**
@@ -65,8 +63,8 @@ export function getPost(postId) {
 export function getComments(postId) {
   return request({
     url: `/posts/${postId}/comments`,
-    method: 'get'
-  })
+    method: "get",
+  });
 }
 
 /**
@@ -77,9 +75,9 @@ export function getComments(postId) {
 export function postComment(postId, commentData) {
   return request({
     url: `/posts/${postId}/comments`,
-    method: 'post',
-    data: commentData
-  })
+    method: "post",
+    data: commentData,
+  });
 }
 
 /**
@@ -90,8 +88,8 @@ export function postComment(postId, commentData) {
 export function deleteComment(postId, commentId) {
   return request({
     url: `/posts/${postId}/comments/${commentId}`,
-    method: 'delete'
-  })
+    method: "delete",
+  });
 }
 
 /**
@@ -100,10 +98,10 @@ export function deleteComment(postId, commentId) {
  */
 export function getPosts(params = {}) {
   return request({
-    url: '/posts',
-    method: 'get',
-    params
-  })
+    url: "/posts",
+    method: "get",
+    params,
+  });
 }
 
 /**
@@ -114,9 +112,9 @@ export function getPosts(params = {}) {
 export function likePost(postId, userId) {
   return request({
     url: `/posts/${postId}/like`,
-    method: 'post',
-    data: { userId }
-  })
+    method: "post",
+    data: { userId },
+  });
 }
 
 /**
@@ -127,9 +125,9 @@ export function likePost(postId, userId) {
 export function unlikePost(postId, userId) {
   return request({
     url: `/posts/${postId}/like`,
-    method: 'delete',
-    data: { userId }
-  })
+    method: "delete",
+    data: { userId },
+  });
 }
 
 const postsApi = {
@@ -142,7 +140,7 @@ const postsApi = {
   postComment,
   deleteComment,
   likePost,
-  unlikePost
-}
+  unlikePost,
+};
 
-export default postsApi
+export default postsApi;

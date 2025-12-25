@@ -47,3 +47,6 @@ coverage/
 *.temp
 .cache/
 
+# Backend directory (not tracked in this repo)
+LinkMe-backend/
+
