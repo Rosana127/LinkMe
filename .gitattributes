@@ -1,33 +1,8 @@
-# 强制使用 LF 换行符（Unix/Linux 格式）
-*.vue text eol=lf
+* text=auto
 *.js text eol=lf
+*.vue text eol=lf
 *.ts text eol=lf
-*.jsx text eol=lf
-*.tsx text eol=lf
-*.css text eol=lf
-*.scss text eol=lf
-*.sass text eol=lf
-*.less text eol=lf
-*.html text eol=lf
 *.json text eol=lf
-*.xml text eol=lf
-*.yaml text eol=lf
-*.yml text eol=lf
-
-# 特定文件类型保持原有换行符
-*.md text eol=crlf
-*.txt text eol=crlf
-
-# 二进制文件明确标识
-*.png binary
-*.jpg binary
-*.jpeg binary
-*.gif binary
-*.ico binary
-*.svg binary
-*.pdf binary
-*.zip binary
-*.tar binary
-*.gz binary
-*.exe binary
-*.dll binary
+*.css text eol=lf
+*.html text eol=lf
+*.md text eol=lf
