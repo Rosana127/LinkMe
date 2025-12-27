@@ -21,6 +21,14 @@
         </div>
       </div>
 
+      <!-- Error Message -->
+      <div v-if="errorMessage" class="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg">
+        <div class="flex items-center">
+          <span class="iconify mr-2 text-red-600" data-icon="mdi:alert-circle" data-inline="false"></span>
+          <span class="text-red-800 text-sm">{{ errorMessage }}</span>
+        </div>
+      </div>
+
       <!-- Form -->
       <div class="bg-white rounded-xl shadow-sm p-8">
         <!-- Step 1: Interests Survey -->
@@ -425,63 +433,32 @@
               >
               <div>
                 <div class="font-medium">热情健谈</div>
-                <div class="text-sm text-gray-600">主动交流，善于营造轻松氛围</div>
               </div>
             </label>
             
             <label class="flex items-center p-4 border-2 rounded-lg cursor-pointer hover:bg-gray-50"
-                   :class="formData.preferredSocialStyle === 'gentle_quiet' ? 'border-purple-500 bg-purple-50' : 'border-gray-200'">
+                   :class="formData.preferredSocialStyle === 'calm_introverted' ? 'border-purple-500 bg-purple-50' : 'border-gray-200'">
               <input 
                 v-model="formData.preferredSocialStyle" 
                 type="radio" 
-                value="gentle_quiet" 
+                value="calm_introverted" 
                 class="mr-4 text-purple-500"
               >
               <div>
-                <div class="font-medium">温柔安静</div>
-                <div class="text-sm text-gray-600">温和内敛，给人安全感</div>
+                <div class="font-medium">沉稳内敛</div>
               </div>
             </label>
             
             <label class="flex items-center p-4 border-2 rounded-lg cursor-pointer hover:bg-gray-50"
-                   :class="formData.preferredSocialStyle === 'humorous_cheerful' ? 'border-purple-500 bg-purple-50' : 'border-gray-200'">
+                   :class="formData.preferredSocialStyle === 'in_sync' ? 'border-purple-500 bg-purple-50' : 'border-gray-200'">
               <input 
                 v-model="formData.preferredSocialStyle" 
                 type="radio" 
-                value="humorous_cheerful" 
+                value="in_sync" 
                 class="mr-4 text-purple-500"
               >
               <div>
-                <div class="font-medium">幽默开朗</div>
-                <div class="text-sm text-gray-600">乐观积极，能带来正能量</div>
-              </div>
-            </label>
-            
-            <label class="flex items-center p-4 border-2 rounded-lg cursor-pointer hover:bg-gray-50"
-                   :class="formData.preferredSocialStyle === 'intellectual' ? 'border-purple-500 bg-purple-50' : 'border-gray-200'">
-              <input 
-                v-model="formData.preferredSocialStyle" 
-                type="radio" 
-                value="intellectual" 
-                class="mr-4 text-purple-500"
-              >
-              <div>
-                <div class="font-medium">理性深沉</div>
-                <div class="text-sm text-gray-600">思维深刻，喜欢深度交流</div>
-              </div>
-            </label>
-            
-            <label class="flex items-center p-4 border-2 rounded-lg cursor-pointer hover:bg-gray-50"
-                   :class="formData.preferredSocialStyle === 'adventurous' ? 'border-purple-500 bg-purple-50' : 'border-gray-200'">
-              <input 
-                v-model="formData.preferredSocialStyle" 
-                type="radio" 
-                value="adventurous" 
-                class="mr-4 text-purple-500"
-              >
-              <div>
-                <div class="font-medium">外向活跃</div>
-                <div class="text-sm text-gray-600">精力充沛，喜欢新鲜刺激</div>
+                <div class="font-medium">同频即可</div>
               </div>
             </label>
           </div>
@@ -494,72 +471,54 @@
           
           <div class="space-y-3">
             <label class="flex items-center p-4 border-2 rounded-lg cursor-pointer hover:bg-gray-50"
-                   :class="formData.preferredLifestyle === 'planned_regular' ? 'border-purple-500 bg-purple-50' : 'border-gray-200'">
+                   :class="formData.preferredLifestyle === 'meticulous' ? 'border-purple-500 bg-purple-50' : 'border-gray-200'">
               <input 
                 v-model="formData.preferredLifestyle" 
                 type="radio" 
-                value="planned_regular" 
+                value="meticulous" 
                 class="mr-4 text-purple-500"
               >
               <div>
-                <div class="font-medium">规律计划型</div>
-                <div class="text-sm text-gray-600">喜欢有规律的生活，做事有计划</div>
+                <div class="font-medium">严谨细致</div>
               </div>
             </label>
             
             <label class="flex items-center p-4 border-2 rounded-lg cursor-pointer hover:bg-gray-50"
-                   :class="formData.preferredLifestyle === 'flexible_spontaneous' ? 'border-purple-500 bg-purple-50' : 'border-gray-200'">
+                   :class="formData.preferredLifestyle === 'efficient_action' ? 'border-purple-500 bg-purple-50' : 'border-gray-200'">
               <input 
                 v-model="formData.preferredLifestyle" 
                 type="radio" 
-                value="flexible_spontaneous" 
+                value="efficient_action" 
                 class="mr-4 text-purple-500"
               >
               <div>
-                <div class="font-medium">灵活随性型</div>
-                <div class="text-sm text-gray-600">喜欢自由度高的生活，随机应变</div>
+                <div class="font-medium">高效行动</div>
               </div>
             </label>
             
             <label class="flex items-center p-4 border-2 rounded-lg cursor-pointer hover:bg-gray-50"
-                   :class="formData.preferredLifestyle === 'social_energetic' ? 'border-purple-500 bg-purple-50' : 'border-gray-200'">
+                   :class="formData.preferredLifestyle === 'flexible_adaptable' ? 'border-purple-500 bg-purple-50' : 'border-gray-200'">
               <input 
                 v-model="formData.preferredLifestyle" 
                 type="radio" 
-                value="social_energetic" 
+                value="flexible_adaptable" 
                 class="mr-4 text-purple-500"
               >
               <div>
-                <div class="font-medium">社交活跃型</div>
-                <div class="text-sm text-gray-600">喜欢热闹的活动，朋友众多</div>
+                <div class="font-medium">灵活变通</div>
               </div>
             </label>
             
             <label class="flex items-center p-4 border-2 rounded-lg cursor-pointer hover:bg-gray-50"
-                   :class="formData.preferredLifestyle === 'peaceful_connected' ? 'border-purple-500 bg-purple-50' : 'border-gray-200'">
+                   :class="formData.preferredLifestyle === 'reliable_steady' ? 'border-purple-500 bg-purple-50' : 'border-gray-200'">
               <input 
                 v-model="formData.preferredLifestyle" 
                 type="radio" 
-                value="peaceful_connected" 
+                value="reliable_steady" 
                 class="mr-4 text-purple-500"
               >
               <div>
-                <div class="font-medium">宁静致远型</div>
-                <div class="text-sm text-gray-600">偏爱安静的生活，注重内心世界</div>
-              </div>
-            </label>
-            
-            <label class="flex items-center p-4 border-2 rounded-lg cursor-pointer hover:bg-gray-50"
-                   :class="formData.preferredLifestyle === 'balanced_harmonious' ? 'border-purple-500 bg-purple-50' : 'border-gray-200'">
-              <input 
-                v-model="formData.preferredLifestyle" 
-                type="radio" 
-                value="balanced_harmonious" 
-                class="mr-4 text-purple-500"
-              >
-              <div>
-                <div class="font-medium">平衡和谐型</div>
-                <div class="text-sm text-gray-600">在动静之间找到平衡，生活张弛有度</div>
+                <div class="font-medium">踏实靠谱</div>
               </div>
             </label>
           </div>
@@ -572,257 +531,197 @@
           
           <div class="space-y-3">
             <label class="flex items-center p-4 border-2 rounded-lg cursor-pointer hover:bg-gray-50"
-                   :class="formData.preferredInterests === 'similar' ? 'border-purple-500 bg-purple-50' : 'border-gray-200'">
+                   :class="formData.preferredInterests === 'optimistic_positive' ? 'border-purple-500 bg-purple-50' : 'border-gray-200'">
               <input 
                 v-model="formData.preferredInterests" 
                 type="radio" 
-                value="similar" 
+                value="optimistic_positive" 
                 class="mr-4 text-purple-500"
               >
               <div>
-                <div class="font-medium">兴趣相近</div>
-                <div class="text-sm text-gray-600">有共同爱好，容易找到话题</div>
+                <div class="font-medium">乐观积极</div>
               </div>
             </label>
             
             <label class="flex items-center p-4 border-2 rounded-lg cursor-pointer hover:bg-gray-50"
-                   :class="formData.preferredInterests === 'different' ? 'border-purple-500 bg-purple-50' : 'border-gray-200'">
+                   :class="formData.preferredInterests === 'calm_rational' ? 'border-purple-500 bg-purple-50' : 'border-gray-200'">
               <input 
                 v-model="formData.preferredInterests" 
                 type="radio" 
-                value="different" 
+                value="calm_rational" 
                 class="mr-4 text-purple-500"
               >
               <div>
-                <div class="font-medium">兴趣互补</div>
-                <div class="text-sm text-gray-600">不同爱好，可以互相学习</div>
+                <div class="font-medium">冷静理智</div>
               </div>
             </label>
             
             <label class="flex items-center p-4 border-2 rounded-lg cursor-pointer hover:bg-gray-50"
-                   :class="formData.preferredInterests === 'open_exploring' ? 'border-purple-500 bg-purple-50' : 'border-gray-200'">
+                   :class="formData.preferredInterests === 'sensitive_empathetic' ? 'border-purple-500 bg-purple-50' : 'border-gray-200'">
               <input 
                 v-model="formData.preferredInterests" 
                 type="radio" 
-                value="open_exploring" 
+                value="sensitive_empathetic" 
                 class="mr-4 text-purple-500"
               >
               <div>
-                <div class="font-medium">开放探索</div>
-                <div class="text-sm text-gray-600">愿意尝试新事物，一起成长</div>
+                <div class="font-medium">敏感共情</div>
               </div>
             </label>
             
             <label class="flex items-center p-4 border-2 rounded-lg cursor-pointer hover:bg-gray-50"
-                   :class="formData.preferredInterests === 'passionate_focused' ? 'border-purple-500 bg-purple-50' : 'border-gray-200'">
+                   :class="formData.preferredInterests === 'emotionally_stable' ? 'border-purple-500 bg-purple-50' : 'border-gray-200'">
               <input 
                 v-model="formData.preferredInterests" 
                 type="radio" 
-                value="passionate_focused" 
+                value="emotionally_stable" 
                 class="mr-4 text-purple-500"
               >
               <div>
-                <div class="font-medium">专注投入</div>
-                <div class="text-sm text-gray-600">有自己热爱的事业或爱好</div>
+                <div class="font-medium">情绪稳定</div>
               </div>
             </label>
           </div>
         </div>
 
-        <!-- Step 9: 沟通频率 -->
+        <!-- Step 9: 关系相处偏好 -->
         <div v-if="currentStep === 9">
-          <h2 class="text-xl font-bold mb-6">理想交友对象特质</h2>
-          <p class="text-gray-600 mb-6">4. 你希望对方的沟通频率是？</p>
+          <h2 class="text-xl font-bold mb-6">关系相处偏好</h2>
           
-          <div class="space-y-3">
-            <label class="flex items-center p-4 border-2 rounded-lg cursor-pointer hover:bg-gray-50"
-                   :class="formData.preferredCommunication === 'frequent' ? 'border-purple-500 bg-purple-50' : 'border-gray-200'">
-              <input 
-                v-model="formData.preferredCommunication" 
-                type="radio" 
-                value="frequent" 
-                class="mr-4 text-purple-500"
+          <!-- 问题1: 最重视的关系品质 -->
+          <div class="mb-8">
+            <p class="text-gray-700 mb-4 font-medium">1. 最重视的关系品质（多选，最多选 3 个）</p>
+            <div class="grid grid-cols-2 gap-3">
+              <div 
+                v-for="quality in relationshipQualitiesOptions" 
+                :key="quality.id"
+                @click="toggleRelationshipQuality(quality.id)"
+                :class="[
+                  'flex items-center p-3 rounded-lg cursor-pointer transition-all duration-200 hover:bg-gray-50',
+                  formData.relationshipQualities.includes(quality.id) ? 'bg-purple-50 border-purple-200' : 'bg-gray-50 border-gray-200'
+                ]"
               >
-              <div>
-                <div class="font-medium">频繁交流</div>
-                <div class="text-sm text-gray-600">每天都有联系，分享日常</div>
+                <div class="w-5 h-5 rounded border-2 mr-3 flex items-center justify-center transition-all duration-200"
+                     :class="formData.relationshipQualities.includes(quality.id) 
+                       ? 'border-purple-500 bg-purple-500' 
+                       : 'border-gray-300 bg-white'">
+                  <div v-if="formData.relationshipQualities.includes(quality.id)" 
+                       class="w-2 h-2 rounded-sm bg-white"></div>
+                </div>
+                <span class="text-sm font-medium">{{ quality.name }}</span>
               </div>
-            </label>
-            
-            <label class="flex items-center p-4 border-2 rounded-lg cursor-pointer hover:bg-gray-50"
-                   :class="formData.preferredCommunication === 'moderate' ? 'border-purple-500 bg-purple-50' : 'border-gray-200'">
-              <input 
-                v-model="formData.preferredCommunication" 
-                type="radio" 
-                value="moderate" 
-                class="mr-4 text-purple-500"
-              >
-              <div>
-                <div class="font-medium">适度联系</div>
-                <div class="text-sm text-gray-600">有需要时联系，不过分频繁</div>
-              </div>
-            </label>
-            
-            <label class="flex items-center p-4 border-2 rounded-lg cursor-pointer hover:bg-gray-50"
-                   :class="formData.preferredCommunication === 'quality_focused' ? 'border-purple-500 bg-purple-50' : 'border-gray-200'">
-              <input 
-                v-model="formData.preferredCommunication" 
-                type="radio" 
-                value="quality_focused" 
-                class="mr-4 text-purple-500"
-              >
-              <div>
-                <div class="font-medium">质量优先</div>
-                <div class="text-sm text-gray-600">联系少但每次都很深入</div>
-              </div>
-            </label>
-            
-            <label class="flex items-center p-4 border-2 rounded-lg cursor-pointer hover:bg-gray-50"
-                   :class="formData.preferredCommunication === 'flexible_adaptable' ? 'border-purple-500 bg-purple-50' : 'border-gray-200'">
-              <input 
-                v-model="formData.preferredCommunication" 
-                type="radio" 
-                value="flexible_adaptable" 
-                class="mr-4 text-purple-500"
-              >
-              <div>
-                <div class="font-medium">灵活适应</div>
-                <div class="text-sm text-gray-600">根据彼此时间和心情调整</div>
-              </div>
-            </label>
+            </div>
+            <div class="mt-3 text-sm text-gray-600">
+              已选择 {{ formData.relationshipQualities.length }}/3 个
+            </div>
+          </div>
+
+          <!-- 问题2: 理想的关系模式 -->
+          <div class="mb-8">
+            <p class="text-gray-700 mb-4 font-medium">2. 理想的关系模式</p>
+            <div class="space-y-3">
+              <label class="flex items-center p-4 border-2 rounded-lg cursor-pointer hover:bg-gray-50"
+                     :class="formData.preferredRelationshipMode === 'high_frequency' ? 'border-purple-500 bg-purple-50' : 'border-gray-200'">
+                <input 
+                  v-model="formData.preferredRelationshipMode" 
+                  type="radio" 
+                  value="high_frequency" 
+                  class="mr-4 text-purple-500"
+                >
+                <div>
+                  <div class="font-medium">高频互动型（日常分享琐事）</div>
+                </div>
+              </label>
+              
+              <label class="flex items-center p-4 border-2 rounded-lg cursor-pointer hover:bg-gray-50"
+                     :class="formData.preferredRelationshipMode === 'deep_communication' ? 'border-purple-500 bg-purple-50' : 'border-gray-200'">
+                <input 
+                  v-model="formData.preferredRelationshipMode" 
+                  type="radio" 
+                  value="deep_communication" 
+                  class="mr-4 text-purple-500"
+                >
+                <div>
+                  <div class="font-medium">深度交流型（走心探讨观点）</div>
+                </div>
+              </label>
+              
+              <label class="flex items-center p-4 border-2 rounded-lg cursor-pointer hover:bg-gray-50"
+                     :class="formData.preferredRelationshipMode === 'casual_companion' ? 'border-purple-500 bg-purple-50' : 'border-gray-200'">
+                <input 
+                  v-model="formData.preferredRelationshipMode" 
+                  type="radio" 
+                  value="casual_companion" 
+                  class="mr-4 text-purple-500"
+                >
+                <div>
+                  <div class="font-medium">佛系陪伴型（有事才聊，互不打扰）</div>
+                </div>
+              </label>
+              
+              <label class="flex items-center p-4 border-2 rounded-lg cursor-pointer hover:bg-gray-50"
+                     :class="formData.preferredRelationshipMode === 'interest_buddy' ? 'border-purple-500 bg-purple-50' : 'border-gray-200'">
+                <input 
+                  v-model="formData.preferredRelationshipMode" 
+                  type="radio" 
+                  value="interest_buddy" 
+                  class="mr-4 text-purple-500"
+                >
+                <div>
+                  <div class="font-medium">兴趣搭子型（只聊共同爱好）</div>
+                </div>
+              </label>
+            </div>
+          </div>
+
+          <!-- 问题3: 沟通期待 -->
+          <div>
+            <p class="text-gray-700 mb-4 font-medium">3. 沟通期待</p>
+            <div class="space-y-3">
+              <label class="flex items-center p-4 border-2 rounded-lg cursor-pointer hover:bg-gray-50"
+                     :class="formData.communicationExpectation === 'instant_reply' ? 'border-purple-500 bg-purple-50' : 'border-gray-200'">
+                <input 
+                  v-model="formData.communicationExpectation" 
+                  type="radio" 
+                  value="instant_reply" 
+                  class="mr-4 text-purple-500"
+                >
+                <div>
+                  <div class="font-medium">消息秒回型</div>
+                </div>
+              </label>
+              
+              <label class="flex items-center p-4 border-2 rounded-lg cursor-pointer hover:bg-gray-50"
+                     :class="formData.communicationExpectation === 'casual_reply' ? 'border-purple-500 bg-purple-50' : 'border-gray-200'">
+                <input 
+                  v-model="formData.communicationExpectation" 
+                  type="radio" 
+                  value="casual_reply" 
+                  class="mr-4 text-purple-500"
+                >
+                <div>
+                  <div class="font-medium">随缘回复型</div>
+                </div>
+              </label>
+              
+              <label class="flex items-center p-4 border-2 rounded-lg cursor-pointer hover:bg-gray-50"
+                     :class="formData.communicationExpectation === 'timely_communication' ? 'border-purple-500 bg-purple-50' : 'border-gray-200'">
+                <input 
+                  v-model="formData.communicationExpectation" 
+                  type="radio" 
+                  value="timely_communication" 
+                  class="mr-4 text-purple-500"
+                >
+                <div>
+                  <div class="font-medium">遇事及时沟通型</div>
+                </div>
+              </label>
+            </div>
           </div>
         </div>
 
-        <!-- Step 10: 聚会频率 -->
+        <!-- Step 10: 年龄要求 -->
         <div v-if="currentStep === 10">
-          <h2 class="text-xl font-bold mb-6">理想交友对象特质</h2>
-          <p class="text-gray-600 mb-6">5. 你希望多久见一次面？</p>
-          
-          <div class="space-y-3">
-            <label class="flex items-center p-4 border-2 rounded-lg cursor-pointer hover:bg-gray-50"
-                   :class="formData.preferredMeetingFrequency === 'weekly' ? 'border-purple-500 bg-purple-50' : 'border-gray-200'">
-              <input 
-                v-model="formData.preferredMeetingFrequency" 
-                type="radio" 
-                value="weekly" 
-                class="mr-4 text-purple-500"
-              >
-              <div>
-                <div class="font-medium">每周一次</div>
-                <div class="text-sm text-gray-600">固定时间见面，保持稳定联系</div>
-              </div>
-            </label>
-            
-            <label class="flex items-center p-4 border-2 rounded-lg cursor-pointer hover:bg-gray-50"
-                   :class="formData.preferredMeetingFrequency === 'biweekly' ? 'border-purple-500 bg-purple-50' : 'border-gray-200'">
-              <input 
-                v-model="formData.preferredMeetingFrequency" 
-                type="radio" 
-                value="biweekly" 
-                class="mr-4 text-purple-500"
-              >
-              <div>
-                <div class="font-medium">两周一次</div>
-                <div class="text-sm text-gray-600">时间充裕，见面更有意义</div>
-              </div>
-            </label>
-            
-            <label class="flex items-center p-4 border-2 rounded-lg cursor-pointer hover:bg-gray-50"
-                   :class="formData.preferredMeetingFrequency === 'monthly' ? 'border-purple-500 bg-purple-50' : 'border-gray-200'">
-              <input 
-                v-model="formData.preferredMeetingFrequency" 
-                type="radio" 
-                value="monthly" 
-                class="mr-4 text-purple-500"
-              >
-              <div>
-                <div class="font-medium">每月一次</div>
-                <div class="text-sm text-gray-600">重质量胜过频率</div>
-              </div>
-            </label>
-            
-            <label class="flex items-center p-4 border-2 rounded-lg cursor-pointer hover:bg-gray-50"
-                   :class="formData.preferredMeetingFrequency === 'flexible' ? 'border-purple-500 bg-purple-50' : 'border-gray-200'">
-              <input 
-                v-model="formData.preferredMeetingFrequency" 
-                type="radio" 
-                value="flexible" 
-                class="mr-4 text-purple-500"
-              >
-              <div>
-                <div class="font-medium">灵活安排</div>
-                <div class="text-sm text-gray-600">根据实际情况安排时间</div>
-              </div>
-            </label>
-          </div>
-        </div>
-
-        <!-- Step 11: 关系节奏 -->
-        <div v-if="currentStep === 11">
-          <h2 class="text-xl font-bold mb-6">理想交友对象特质</h2>
-          <p class="text-gray-600 mb-6">6. 你希望关系发展的节奏是？</p>
-          
-          <div class="space-y-3">
-            <label class="flex items-center p-4 border-2 rounded-lg cursor-pointer hover:bg-gray-50"
-                   :class="formData.preferredRelationshipPace === 'slow_steady' ? 'border-purple-500 bg-purple-50' : 'border-gray-200'">
-              <input 
-                v-model="formData.preferredRelationshipPace" 
-                type="radio" 
-                value="slow_steady" 
-                class="mr-4 text-purple-500"
-              >
-              <div>
-                <div class="font-medium">慢热稳定</div>
-                <div class="text-sm text-gray-600">循序渐进，深入了解</div>
-              </div>
-            </label>
-            
-            <label class="flex items-center p-4 border-2 rounded-lg cursor-pointer hover:bg-gray-50"
-                   :class="formData.preferredRelationshipPace === 'balanced_organic' ? 'border-purple-500 bg-purple-50' : 'border-gray-200'">
-              <input 
-                v-model="formData.preferredRelationshipPace" 
-                type="radio" 
-                value="balanced_organic" 
-                class="mr-4 text-purple-500"
-              >
-              <div>
-                <div class="font-medium">自然平衡</div>
-                <div class="text-sm text-gray-600">顺其自然，根据感觉调整</div>
-              </div>
-            </label>
-            
-            <label class="flex items-center p-4 border-2 rounded-lg cursor-pointer hover:bg-gray-50"
-                   :class="formData.preferredRelationshipPace === 'warm_quick' ? 'border-purple-500 bg-purple-50' : 'border-gray-200'">
-              <input 
-                v-model="formData.preferredRelationshipPace" 
-                type="radio" 
-                value="warm_quick" 
-                class="mr-4 text-purple-500"
-              >
-              <div>
-                <div class="font-medium">温暖快速</div>
-                <div class="text-sm text-gray-600">快速升温，但保持真诚</div>
-              </div>
-            </label>
-            
-            <label class="flex items-center p-4 border-2 rounded-lg cursor-pointer hover:bg-gray-50"
-                   :class="formData.preferredRelationshipPace === 'understanding_flexible' ? 'border-purple-500 bg-purple-50' : 'border-gray-200'">
-              <input 
-                v-model="formData.preferredRelationshipPace" 
-                type="radio" 
-                value="understanding_flexible" 
-                class="mr-4 text-purple-500"
-              >
-              <div>
-                <div class="font-medium">理解灵活</div>
-                <div class="text-sm text-gray-600">理解对方的节奏，互相配合</div>
-              </div>
-            </label>
-          </div>
-        </div>
-
-        <!-- Step 12: 年龄要求 -->
-        <div v-if="currentStep === 12">
           <h2 class="text-xl font-bold mb-6">交友要求</h2>
           <p class="text-gray-600 mb-6">1. 年龄要求</p>
           
@@ -877,60 +776,46 @@
           </div>
         </div>
 
-        <!-- Step 13: 距离要求 -->
-        <div v-if="currentStep === 13">
+        <!-- Step 11: 距离要求 -->
+        <div v-if="currentStep === 11">
           <h2 class="text-xl font-bold mb-6">交友要求</h2>
-          <p class="text-gray-600 mb-6">2. 关系距离要求</p>
+          <p class="text-gray-600 mb-6">2. 您对交友的关系距离要求？</p>
           
           <div class="space-y-3">
             <label class="flex items-center p-4 border-2 rounded-lg cursor-pointer hover:bg-gray-50"
-                   :class="formData.distanceRequirement === 'same_city' ? 'border-purple-500 bg-purple-50' : 'border-gray-200'">
+                   :class="formData.distanceRequirement === 'same_city_priority' ? 'border-purple-500 bg-purple-50' : 'border-gray-200'">
               <input 
                 v-model="formData.distanceRequirement" 
                 type="radio" 
-                value="same_city" 
+                value="same_city_priority" 
                 class="mr-4 text-purple-500"
               >
               <div>
-                <div class="font-medium">同城</div>
-                <div class="text-sm text-gray-600">希望在同一城市，方便见面</div>
+                <div class="font-medium">同城优先（可线下见面）</div>
+                <div class="text-sm text-gray-600">希望在同一城市，方便线下见面交流</div>
               </div>
             </label>
             
             <label class="flex items-center p-4 border-2 rounded-lg cursor-pointer hover:bg-gray-50"
-                   :class="formData.distanceRequirement === 'same_province' ? 'border-purple-500 bg-purple-50' : 'border-gray-200'">
+                   :class="formData.distanceRequirement === 'both_ok' ? 'border-purple-500 bg-purple-50' : 'border-gray-200'">
               <input 
                 v-model="formData.distanceRequirement" 
                 type="radio" 
-                value="same_province" 
+                value="both_ok" 
                 class="mr-4 text-purple-500"
               >
               <div>
-                <div class="font-medium">同省</div>
-                <div class="text-sm text-gray-600">同省份内，距离不要太远</div>
+                <div class="font-medium">同城/异地均可（线上为主）</div>
+                <div class="text-sm text-gray-600">同城或异地都可以，主要通过线上交流</div>
               </div>
             </label>
             
             <label class="flex items-center p-4 border-2 rounded-lg cursor-pointer hover:bg-gray-50"
-                   :class="formData.distanceRequirement === 'same_region' ? 'border-purple-500 bg-purple-50' : 'border-gray-200'">
+                   :class="formData.distanceRequirement === 'no_limit' ? 'border-purple-500 bg-purple-50' : 'border-gray-200'">
               <input 
                 v-model="formData.distanceRequirement" 
                 type="radio" 
-                value="same_region" 
-                class="mr-4 text-purple-500"
-              >
-              <div>
-                <div class="font-medium">同区域</div>
-                <div class="text-sm text-gray-600">相邻省份，交通便利</div>
-              </div>
-            </label>
-            
-            <label class="flex items-center p-4 border-2 rounded-lg cursor-pointer hover:bg-gray-50"
-                   :class="formData.distanceRequirement === 'anywhere' ? 'border-purple-500 bg-purple-50' : 'border-gray-200'">
-              <input 
-                v-model="formData.distanceRequirement" 
-                type="radio" 
-                value="anywhere" 
+                value="no_limit" 
                 class="mr-4 text-purple-500"
               >
               <div>
@@ -941,14 +826,14 @@
           </div>
         </div>
 
-        <!-- Step 14: 必要维度 -->
-        <div v-if="currentStep === 14">
+        <!-- Step 12: 必要维度 -->
+        <div v-if="currentStep === 12">
           <h2 class="text-xl font-bold mb-6">交友要求</h2>
-          <p class="text-gray-600 mb-6">3. 必要维度（必选2个）</p>
+          <p class="text-gray-600 mb-6">3. 以下维度中，你认为必须满足的是（多选，必须选1个，最多选2个）</p>
           
           <div class="space-y-3">
             <div 
-              v-for="quality in relationshipQualities" 
+              v-for="quality in mustHaveDimensions" 
               :key="quality.id"
               @click="toggleMustHaveQuality(quality.id)"
               :class="[
@@ -965,24 +850,27 @@
               </div>
               <div>
                 <div class="font-medium">{{ quality.name }}</div>
-                <div class="text-sm text-gray-600">{{ quality.description }}</div>
+                <div v-if="quality.description" class="text-sm text-gray-600">{{ quality.description }}</div>
               </div>
             </div>
           </div>
           
           <div class="mt-4 text-sm text-gray-600">
             已选择 {{ formData.mustHaveQualities.length }}/2 个
+            <span v-if="formData.mustHaveQualities.length === 0" class="text-red-600 ml-2">
+              （必须选择1-2个）
+            </span>
           </div>
         </div>
 
-        <!-- Step 15: 优先维度 -->
-        <div v-if="currentStep === 15">
+        <!-- Step 13: 优先维度 -->
+        <div v-if="currentStep === 13">
           <h2 class="text-xl font-bold mb-6">交友要求</h2>
-          <p class="text-gray-600 mb-6">4. 优先维度（可多选，最多3个）</p>
+          <p class="text-gray-600 mb-6">3. 以下维度中，你认为必须满足的是（多选，必须选1个，最多选3个）</p>
           
           <div class="space-y-3">
             <div 
-              v-for="quality in relationshipQualities" 
+              v-for="quality in mustHaveDimensions" 
               :key="quality.id"
               @click="togglePriorityQuality(quality.id)"
               :class="[
@@ -999,18 +887,21 @@
               </div>
               <div>
                 <div class="font-medium">{{ quality.name }}</div>
-                <div class="text-sm text-gray-600">{{ quality.description }}</div>
+                <div v-if="quality.description" class="text-sm text-gray-600">{{ quality.description }}</div>
               </div>
             </div>
           </div>
           
           <div class="mt-4 text-sm text-gray-600">
             已选择 {{ formData.priorityQualities.length }}/3 个
+            <span v-if="formData.priorityQualities.length === 0" class="text-red-600 ml-2">
+              （必须选择1-3个）
+            </span>
           </div>
         </div>
 
-        <!-- Step 16: 额外要求 -->
-        <div v-if="currentStep === 16">
+        <!-- Step 14: 额外要求 -->
+        <div v-if="currentStep === 14">
           <h2 class="text-xl font-bold mb-6">交友要求</h2>
           <p class="text-gray-600 mb-6">5. 额外要求（选填）</p>
           
@@ -1022,8 +913,8 @@
           ></textarea>
         </div>
 
-        <!-- Step 17: 完成 -->
-        <div v-if="currentStep === 17">
+        <!-- Step 15: 完成 -->
+        <div v-if="currentStep === 15">
           <div class="text-center py-8">
             <div class="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
               <svg class="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1055,12 +946,20 @@
         <div v-else></div>
         
         <button 
-          v-if="currentStep < 17"
+          v-if="currentStep < 15"
           @click="canProceed ? nextStep() : null" 
+          :disabled="!canProceed || isSaving"
           class="px-6 py-3 rounded-lg transition-colors font-medium border"
-          :style="canProceed ? 'background-color: #2563eb; color: white; border-color: #2563eb; cursor: pointer;' : 'background-color: #f3f4f6; color: #1f2937; border-color: #9ca3af; cursor: not-allowed;'"
+          :style="canProceed && !isSaving ? 'background-color: #2563eb; color: white; border-color: #2563eb; cursor: pointer;' : 'background-color: #f3f4f6; color: #1f2937; border-color: #9ca3af; cursor: not-allowed;'"
         >
-          {{ currentStep === totalSteps ? '完成问卷' : '下一步' }}
+          <span v-if="isSaving" class="flex items-center">
+            <svg class="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+            保存中...
+          </span>
+          <span v-else>{{ currentStep === totalSteps - 1 ? '完成问卷' : '下一步' }}</span>
         </button>
       </div>
     </div>
@@ -1068,12 +967,18 @@
 </template>
 
 <script>
+import { submitQuestionnaire, getQuestionnaire } from '@/api/questionnaire'
+import { useAuthStore } from '@/stores/auth'
+
 export default {
   name: 'QuestionnairePage',
   data() {
     return {
       currentStep: 1,
-      totalSteps: 17,
+      totalSteps: 15,
+      isLoading: false,
+      isSaving: false,
+      errorMessage: '',
       formData: {
         interests: [],
         socialEnergy: '',
@@ -1083,9 +988,9 @@ export default {
         preferredSocialStyle: '',
         preferredLifestyle: '',
         preferredInterests: '',
-        preferredCommunication: '',
-        preferredMeetingFrequency: '',
-        preferredRelationshipPace: '',
+        relationshipQualities: [],
+        preferredRelationshipMode: '',
+        communicationExpectation: '',
         ageRequirement: {
           unlimited: false,
           minAge: 18,
@@ -1098,66 +1003,77 @@ export default {
       },
       // 爱好数据
       artEntertainment: [
-        { id: 'music', name: '音乐' },
         { id: 'art', name: '绘画' },
         { id: 'photography', name: '摄影' },
-        { id: 'film', name: '电影' },
+        { id: 'calligraphy', name: '书法' },
+        { id: 'writing', name: '写作' },
+        { id: 'singing', name: '歌唱' },
+        { id: 'dance', name: '舞蹈' },
         { id: 'theater', name: '戏剧' },
-        { id: 'literature', name: '文学' },
-        { id: 'design', name: '设计' },
-        { id: 'dance', name: '舞蹈' }
+        { id: 'instrument', name: '乐器演奏' },
+        { id: 'graphic_design', name: '平面设计' },
+        { id: 'video_editing', name: '视频剪辑' }
       ],
       learningKnowledge: [
         { id: 'reading', name: '阅读' },
-        { id: 'research', name: '研究' },
-        { id: 'language', name: '语言学习' },
-        { id: 'science', name: '科学' },
-        { id: 'history', name: '历史' },
-        { id: 'philosophy', name: '哲学' },
-        { id: 'technology', name: '科技' },
-        { id: 'business', name: '商业' }
+        { id: 'programming', name: '编程' },
+        { id: 'teaching', name: '教学' },
+        { id: 'psychology', name: '心理学' },
+        { id: 'language_learning', name: '语言学习' },
+        { id: 'philosophy', name: '哲学思考' },
+        { id: 'history_research', name: '历史研究' },
+        { id: 'investment', name: '投资理财' },
+        { id: 'public_speaking', name: '公开演讲' },
+        { id: 'entrepreneurship', name: '创业项目' }
       ],
       sportsOutdoors: [
         { id: 'running', name: '跑步' },
         { id: 'fitness', name: '健身' },
         { id: 'swimming', name: '游泳' },
         { id: 'cycling', name: '骑行' },
-        { id: 'hiking', name: '徒步' },
+        { id: 'fishing', name: '钓鱼' },
+        { id: 'yoga', name: '瑜伽' },
+        { id: 'camping', name: '露营' },
+        { id: 'martial_arts', name: '武术' },
+        { id: 'mountaineering', name: '登山' },
         { id: 'climbing', name: '攀岩' },
-        { id: 'skiing', name: '滑雪' },
+        { id: 'frisbee', name: '飞盘' },
         { id: 'team_sports', name: '球类运动' }
       ],
       leisureEntertainment: [
-        { id: 'gaming', name: '游戏' },
-        { id: 'cooking', name: '烹饪' },
-        { id: 'gardening', name: '园艺' },
-        { id: 'pets', name: '宠物' },
-        { id: 'travel', name: '旅行' },
+        { id: 'board_games', name: '桌游' },
+        { id: 'card_games', name: '棋牌' },
+        { id: 'magic', name: '魔术' },
         { id: 'collecting', name: '收藏' },
-        { id: 'crafts', name: '手工' },
-        { id: 'social_media', name: '社交媒体' }
+        { id: 'tv_shows', name: '追剧' },
+        { id: 'movies', name: '看电影' },
+        { id: 'music', name: '听音乐' },
+        { id: 'script_killing', name: '剧本杀' },
+        { id: 'escape_room', name: '密室逃脱' },
+        { id: 'gaming', name: '电子游戏' }
       ],
       lifeSkills: [
-        { id: 'cooking_advanced', name: '烹饪技巧' },
-        { id: 'home_improvement', name: '家居装修' },
-        { id: 'car_maintenance', name: '汽车保养' },
-        { id: 'financial_planning', name: '理财规划' },
-        { id: 'time_management', name: '时间管理' },
-        { id: 'productivity', name: '效率提升' },
-        { id: 'self_improvement', name: '自我提升' },
-        { id: 'life_hacks', name: '生活技巧' }
+        { id: 'cooking_baking', name: '烹饪/烘焙' },
+        { id: 'coffee_tea_mixology', name: '咖啡/茶艺/调酒' },
+        { id: 'handicraft_diy', name: '手工 DIY' },
+        { id: 'sewing', name: '缝纫' },
+        { id: 'home_decoration', name: '家居装饰' },
+        { id: 'organizing', name: '收纳整理' },
+        { id: 'floristry_gardening', name: '花艺绿植' }
       ],
       socialExperience: [
-        { id: 'volunteering', name: '志愿活动' },
-        { id: 'networking', name: '社交网络' },
-        { id: 'public_speaking', name: '公众演讲' },
-        { id: 'leadership', name: '领导力' },
-        { id: 'teamwork', name: '团队合作' },
-        { id: 'mentoring', name: '导师指导' },
-        { id: 'community', name: '社区活动' },
-        { id: 'cultural_events', name: '文化活动' }
+        { id: 'travel', name: '旅行' },
+        { id: 'bird_watching', name: '观鸟' },
+        { id: 'music_festival', name: '音乐节' },
+        { id: 'concert', name: '演唱会' },
+        { id: 'restaurant_hopping', name: '探店打卡' },
+        { id: 'exhibition', name: '展览打卡' },
+        { id: 'astronomy', name: '天文观测' },
+        { id: 'volunteering', name: '公益志愿' },
+        { id: 'petting', name: '撸猫撸狗' },
+        { id: 'city_walk', name: 'city walk' }
       ],
-      // 关系质量数据
+      // 关系质量数据（用于必要维度和优先维度）
       relationshipQualities: [
         { id: 'trustworthy', name: '诚实可信', description: '为人诚实，值得信赖' },
         { id: 'emotionally_stable', name: '情绪稳定', description: '情绪管理能力强，不会大起大落' },
@@ -1169,6 +1085,25 @@ export default {
         { id: 'caring', name: '体贴关怀', description: '关心他人，善于照顾' },
         { id: 'adventurous', name: '勇于尝试', description: '愿意一起探索新事物' },
         { id: 'stable', name: '稳重踏实', description: '性格稳重，给人安全感' }
+      ],
+      // 关系品质选项（用于第9页）
+      relationshipQualitiesOptions: [
+        { id: 'sincere_frank', name: '真诚坦率' },
+        { id: 'mutual_understanding', name: '相互理解' },
+        { id: 'mutual_trust', name: '彼此信任' },
+        { id: 'tolerant_respectful', name: '包容尊重' },
+        { id: 'interesting_compatible', name: '有趣合拍' },
+        { id: 'shared_values', name: '三观一致' }
+      ],
+      // 必要维度选项（用于第12页）
+      mustHaveDimensions: [
+        { id: 'age_range', name: '年龄范围' },
+        { id: 'distance', name: '关系距离' },
+        { id: 'interest_overlap', name: '兴趣重合度' },
+        { id: 'personality_compatibility', name: '性格特质契合' },
+        { id: 'relationship_mode', name: '关系模式一致' },
+        { id: 'communication_style', name: '沟通风格匹配' },
+        { id: 'no_requirement', name: '无要求' }
       ],
       ageOptions: Array.from({length: 82}, (_, i) => i + 18) // 18-99岁
     }
@@ -1193,20 +1128,19 @@ export default {
         case 8:
           return this.formData.preferredInterests !== ''
         case 9:
-          return this.formData.preferredCommunication !== ''
+          return this.formData.relationshipQualities.length > 0 && 
+                 this.formData.relationshipQualities.length <= 3 &&
+                 this.formData.preferredRelationshipMode !== '' &&
+                 this.formData.communicationExpectation !== ''
         case 10:
-          return this.formData.preferredMeetingFrequency !== ''
-        case 11:
-          return this.formData.preferredRelationshipPace !== ''
-        case 12:
           return this.validateAgeRequirement()
-        case 13:
+        case 11:
           return this.formData.distanceRequirement !== ''
+        case 12:
+          return this.formData.mustHaveQualities.length >= 1 && this.formData.mustHaveQualities.length <= 2
+        case 13:
+          return this.formData.priorityQualities.length >= 1 && this.formData.priorityQualities.length <= 3
         case 14:
-          return this.formData.mustHaveQualities.length === 2
-        case 15:
-          return this.formData.priorityQualities.length <= 3
-        case 16:
           return true // 额外要求是选填的
         default:
           return false
@@ -1231,8 +1165,35 @@ export default {
         this.formData.interests.push(interestId)
       }
     },
+    toggleRelationshipQuality(qualityId) {
+      const index = this.formData.relationshipQualities.indexOf(qualityId)
+      if (index > -1) {
+        this.formData.relationshipQualities.splice(index, 1)
+      } else if (this.formData.relationshipQualities.length < 3) {
+        this.formData.relationshipQualities.push(qualityId)
+      }
+    },
     toggleMustHaveQuality(qualityId) {
       const index = this.formData.mustHaveQualities.indexOf(qualityId)
+      
+      // 如果选择"无要求"选项
+      if (qualityId === 'no_requirement') {
+        if (index > -1) {
+          // 如果已经选择，则取消选择
+          this.formData.mustHaveQualities.splice(index, 1)
+        } else {
+          // 如果未选择，则清除所有其他选择，只保留"无要求"
+          this.formData.mustHaveQualities = ['no_requirement']
+        }
+        return
+      }
+      
+      // 如果当前选择了"无要求"，则清除它
+      if (this.formData.mustHaveQualities.includes('no_requirement')) {
+        this.formData.mustHaveQualities = this.formData.mustHaveQualities.filter(id => id !== 'no_requirement')
+      }
+      
+      // 处理其他选项的选择逻辑
       if (index > -1) {
         this.formData.mustHaveQualities.splice(index, 1)
       } else if (this.formData.mustHaveQualities.length < 2) {
@@ -1241,6 +1202,25 @@ export default {
     },
     togglePriorityQuality(qualityId) {
       const index = this.formData.priorityQualities.indexOf(qualityId)
+      
+      // 如果选择"无要求"选项
+      if (qualityId === 'no_requirement') {
+        if (index > -1) {
+          // 如果已经选择，则取消选择
+          this.formData.priorityQualities.splice(index, 1)
+        } else {
+          // 如果未选择，则清除所有其他选择，只保留"无要求"
+          this.formData.priorityQualities = ['no_requirement']
+        }
+        return
+      }
+      
+      // 如果当前选择了"无要求"，则清除它
+      if (this.formData.priorityQualities.includes('no_requirement')) {
+        this.formData.priorityQualities = this.formData.priorityQualities.filter(id => id !== 'no_requirement')
+      }
+      
+      // 处理其他选项的选择逻辑
       if (index > -1) {
         this.formData.priorityQualities.splice(index, 1)
       } else if (this.formData.priorityQualities.length < 3) {
@@ -1259,9 +1239,151 @@ export default {
       }
       return this.formData.ageRequirement.minAge <= this.formData.ageRequirement.maxAge
     },
-    nextStep() {
-      if (this.canProceed && this.currentStep < this.totalSteps) {
+    async nextStep() {
+      if (!this.canProceed) {
+        return
+      }
+      
+      // 如果是倒数第二步（第14步），保存数据后进入完成页面
+      if (this.currentStep === this.totalSteps - 1) {
+        await this.submitQuestionnaireData()
+        // 如果保存成功，会自动进入下一步（完成页面）
+        return
+      }
+      
+      // 否则进入下一步
+      if (this.currentStep < this.totalSteps) {
         this.currentStep++
+      }
+    },
+    async submitQuestionnaireData() {
+      if (this.isSaving) {
+        return
+      }
+      
+      this.isSaving = true
+      this.errorMessage = ''
+      
+      try {
+        const authStore = useAuthStore()
+        const userId = authStore.userId
+        
+        if (!userId) {
+          throw new Error('用户未登录，请先登录')
+        }
+        
+        // 准备提交的数据
+        const questionnaireData = {
+          userId,
+          interests: this.formData.interests,
+          socialEnergy: this.formData.socialEnergy,
+          decisionMaking: this.formData.decisionMaking,
+          lifeRhythm: this.formData.lifeRhythm,
+          communicationStyle: this.formData.communicationStyle,
+          preferredSocialStyle: this.formData.preferredSocialStyle,
+          preferredLifestyle: this.formData.preferredLifestyle,
+          preferredInterests: this.formData.preferredInterests,
+          relationshipQualities: this.formData.relationshipQualities,
+          preferredRelationshipMode: this.formData.preferredRelationshipMode,
+          communicationExpectation: this.formData.communicationExpectation,
+          ageRequirement: {
+            unlimited: this.formData.ageRequirement.unlimited,
+            minAge: this.formData.ageRequirement.unlimited ? null : this.formData.ageRequirement.minAge,
+            maxAge: this.formData.ageRequirement.unlimited ? null : this.formData.ageRequirement.maxAge
+          },
+          distanceRequirement: this.formData.distanceRequirement,
+          mustHaveQualities: this.formData.mustHaveQualities,
+          priorityQualities: this.formData.priorityQualities,
+          additionalRequirements: this.formData.additionalRequirements || ''
+        }
+        
+        // 调用API保存数据
+        await submitQuestionnaire(questionnaireData)
+        
+        // 保存成功，进入完成页面（第15步）
+        if (this.currentStep < this.totalSteps) {
+          this.currentStep++
+        }
+      } catch (error) {
+        console.error('保存问卷失败:', error)
+        this.errorMessage = error.message || '保存问卷失败，请重试'
+        // 可以在这里添加错误提示，比如使用 toast 或 alert
+        alert(this.errorMessage)
+      } finally {
+        this.isSaving = false
+      }
+    },
+    async loadExistingQuestionnaire() {
+      if (this.isLoading) {
+        return
+      }
+      
+      this.isLoading = true
+      this.errorMessage = ''
+      
+      try {
+        const authStore = useAuthStore()
+        const userId = authStore.userId
+        
+        if (!userId) {
+          this.isLoading = false
+          return
+        }
+        
+        // 尝试获取已有的问卷数据
+        const existingData = await getQuestionnaire(userId)
+        
+        // 如果存在数据，填充表单
+        if (existingData && typeof existingData === 'object') {
+          if (existingData.interests) {
+            this.formData.interests = Array.isArray(existingData.interests) 
+              ? existingData.interests 
+              : []
+          }
+          if (existingData.socialEnergy) this.formData.socialEnergy = existingData.socialEnergy
+          if (existingData.decisionMaking) this.formData.decisionMaking = existingData.decisionMaking
+          if (existingData.lifeRhythm) this.formData.lifeRhythm = existingData.lifeRhythm
+          if (existingData.communicationStyle) this.formData.communicationStyle = existingData.communicationStyle
+          if (existingData.preferredSocialStyle) this.formData.preferredSocialStyle = existingData.preferredSocialStyle
+          if (existingData.preferredLifestyle) this.formData.preferredLifestyle = existingData.preferredLifestyle
+          if (existingData.preferredInterests) this.formData.preferredInterests = existingData.preferredInterests
+          if (existingData.relationshipQualities) {
+            this.formData.relationshipQualities = Array.isArray(existingData.relationshipQualities) 
+              ? existingData.relationshipQualities 
+              : []
+          }
+          if (existingData.preferredRelationshipMode) this.formData.preferredRelationshipMode = existingData.preferredRelationshipMode
+          if (existingData.communicationExpectation) this.formData.communicationExpectation = existingData.communicationExpectation
+          if (existingData.ageRequirement) {
+            this.formData.ageRequirement = {
+              unlimited: existingData.ageRequirement.unlimited || false,
+              minAge: existingData.ageRequirement.minAge || 18,
+              maxAge: existingData.ageRequirement.maxAge || 30
+            }
+          }
+          if (existingData.distanceRequirement) this.formData.distanceRequirement = existingData.distanceRequirement
+          if (existingData.mustHaveQualities) {
+            this.formData.mustHaveQualities = Array.isArray(existingData.mustHaveQualities) 
+              ? existingData.mustHaveQualities 
+              : []
+          }
+          if (existingData.priorityQualities) {
+            this.formData.priorityQualities = Array.isArray(existingData.priorityQualities) 
+              ? existingData.priorityQualities 
+              : []
+          }
+          if (existingData.additionalRequirements) {
+            this.formData.additionalRequirements = existingData.additionalRequirements
+          }
+        }
+      } catch (error) {
+        // 如果获取失败（比如404），说明用户还没有填写过问卷，这是正常的
+        // 只在非404错误时记录
+        if (error.status !== 404) {
+          console.warn('获取已有问卷数据失败:', error)
+        }
+      } finally {
+        this.isLoading = false
       }
     },
     prevStep() {
@@ -1280,6 +1402,10 @@ export default {
         this.formData.ageRequirement.maxAge = 99
       }
     }
+  },
+  mounted() {
+    // 页面加载时尝试获取已有的问卷数据
+    this.loadExistingQuestionnaire()
   }
 }
 </script>

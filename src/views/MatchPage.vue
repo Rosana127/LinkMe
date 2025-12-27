@@ -94,10 +94,10 @@
         <p class="text-sm text-gray-600 mb-4">完善你的个人资料，获得更精准的匹配推荐</p>
         <button 
           @click="goToQuestionnaire" 
-          class="w-full bg-primary-500 text-white py-3 px-4 rounded-lg hover:bg-primary-600 transition-colors flex items-center justify-center"
+          class="questionnaire-btn w-full bg-gradient-to-r from-purple-500 to-pink-500 text-white py-4 px-4 rounded-xl hover:from-purple-600 hover:to-pink-600 transition-all duration-300 flex items-center justify-center shadow-lg hover:shadow-xl transform hover:scale-105"
         >
-          <span class="iconify mr-2" data-icon="mdi:clipboard-text" data-inline="false"></span>
-          开始问卷
+          <span class="iconify mr-3 text-3xl" data-icon="mdi:file-document-edit" data-inline="false"></span>
+          <span class="text-lg font-semibold">开始问卷</span>
         </button>
       </div>
     </div>
@@ -155,4 +155,36 @@ const goToQuestionnaire = () => {
 </script>
 
 <style scoped>
+.questionnaire-btn {
+  position: relative;
+  overflow: hidden;
+}
+
+.questionnaire-btn::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
+  transition: left 0.5s;
+}
+
+.questionnaire-btn:hover::before {
+  left: 100%;
+}
+
+.questionnaire-btn .iconify {
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.1);
+  }
+}
 </style>
