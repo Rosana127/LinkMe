@@ -497,6 +497,7 @@ const authStore = useAuthStore();
 const searchQuery = ref("");
 const selectedChatId = ref(null);
 const newMessage = ref("");
+const messageDrafts = ref({}); // 用于存储每个会话的草稿消息
 const activeTab = ref("messages"); // 'messages' 或 'notifications'
 const messagesContainer = ref(null);
 const showOptionsMenu = ref(false); // 控制下拉菜单显示
@@ -1264,7 +1265,18 @@ const scrollToBottom = () => {
     messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight;
 };
 
-watch(selectedChatId, () => {
+watch(selectedChatId, (newId, oldId) => {
+  // 切换会话时保存/恢复草稿
+  if (oldId) {
+    messageDrafts.value[oldId] = newMessage.value;
+  }
+  
+  if (newId) {
+    newMessage.value = messageDrafts.value[newId] || "";
+  } else {
+    newMessage.value = "";
+  }
+
   nextTick(() => scrollToBottom());
 });
 
