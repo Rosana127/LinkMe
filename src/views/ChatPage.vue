@@ -225,7 +225,18 @@
               </div>
             </div>
           </div>
-          <div class="flex space-x-4">
+          <div class="flex space-x-4 items-center">
+            <!-- AI 开关 -->
+            <button
+              v-if="aiEnabled" 
+              @click="toggleCurrentChatAi"
+              class="px-3 py-1.5 rounded-lg text-sm font-medium transition-colors mr-2 flex items-center gap-1"
+              :class="isCurrentChatAiEnabled ? 'bg-purple-600 text-white hover:bg-purple-700' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'"
+              title="切换当前会话AI助手"
+            >
+              <span class="iconify" data-icon="mdi:robot" data-inline="false"></span>
+              <span>{{ isCurrentChatAiEnabled ? 'AI开启' : 'AI关闭' }}</span>
+            </button>
             <button
               class="p-2 rounded-full hover:bg-gray-800 transition-colors"
             >
@@ -687,7 +698,52 @@ function formatTime(ts) {
 }
 
 // AI 建议
-const aiEnabled = ref(true);
+const aiEnabled = ref(true); // 全局 AI 开关（后端控制）
+const chatAiSettings = ref({}); // 本地 AI 开关设置（用户控制），key: chatId, value: boolean
+
+// 加载本地 AI 设置
+const loadChatAiSettings = () => {
+  try {
+    const saved = localStorage.getItem('linkme_chat_ai_settings');
+    if (saved) {
+      chatAiSettings.value = JSON.parse(saved);
+    }
+  } catch (e) {
+    console.error('Failed to load chat AI settings', e);
+  }
+};
+
+// 保存本地 AI 设置
+const saveChatAiSettings = () => {
+  localStorage.setItem('linkme_chat_ai_settings', JSON.stringify(chatAiSettings.value));
+};
+
+// 获取当前会话是否开启 AI
+const isCurrentChatAiEnabled = computed(() => {
+  if (!aiEnabled.value) return false; // 全局关闭则全部关闭
+  if (!selectedChatId.value) return false;
+  
+  // 默认为开启 (undefined or true)
+  return chatAiSettings.value[selectedChatId.value] !== false;
+});
+
+// 切换当前会话 AI 状态
+const toggleCurrentChatAi = () => {
+  if (!selectedChatId.value) return;
+  const currentStatus = chatAiSettings.value[selectedChatId.value] !== false;
+  chatAiSettings.value[selectedChatId.value] = !currentStatus;
+  saveChatAiSettings();
+  
+  // 如果打开了，尝试获取一次建议
+  if (!currentStatus) {
+     getAIAnalysis();
+  } else {
+     // 关闭时清空建议
+     aiSuggestion.value = "AI助手已关闭";
+     aiTip.value = "AI助手已关闭";
+  }
+};
+
 const aiSuggestion = ref("正在分析...");
 const aiTip = ref("正在分析对话...");
 const isAnalyzing = ref(false);
@@ -719,7 +775,7 @@ const getAIAnalysis = async (isRetry = false) => {
       aiRetryCount.value = 0;
   }
 
-  if (!aiEnabled.value) {
+  if (!isCurrentChatAiEnabled.value) {
     isAnalyzing.value = false;
     aiSuggestion.value = "AI已关闭";
     aiTip.value = "AI助手已关闭";
@@ -1675,6 +1731,7 @@ const closeWebSocket = () => {
 };
 
 onMounted(async () => {
+  loadChatAiSettings();
   await loadConversations();
   await loadNotifications();
 
