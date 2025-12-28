@@ -76,8 +76,12 @@ request.interceptors.response.use(
           }
           return result;
         }
-        const message = res.message || res.msg || "请求失败";
-        const err = new Error(message);
+        let message = res.message || res.msg || "请求失败";
+        // 确保消息有效，过滤掉无效消息
+        if (message === 'No message available' || !message.trim()) {
+          message = "请求失败";
+        }
+        const err = new Error(message.trim());
         // attach original response body for richer debugging
         err.httpData = res;
         err.status = response.status;
@@ -88,8 +92,12 @@ request.interceptors.response.use(
         if (res.success === true) {
           return res.data !== undefined ? res.data : res;
         }
-        const message = res.message || res.error || "请求失败";
-        const err = new Error(message);
+        let message = res.message || res.error || "请求失败";
+        // 确保消息有效，过滤掉无效消息
+        if (message === 'No message available' || !message.trim()) {
+          message = "请求失败";
+        }
+        const err = new Error(message.trim());
         err.httpData = res;
         err.status = response.status;
         return Promise.reject(err);
@@ -131,8 +139,8 @@ request.interceptors.response.use(
       }
 
       // 如果有后端返回的错误消息，使用它
-      if (res && res.message) {
-        const err = new Error(res.message);
+      if (res && res.message && typeof res.message === 'string' && res.message.trim() && res.message !== 'No message available') {
+        const err = new Error(res.message.trim());
         err.status = status;
         err.httpData = res;
         return Promise.reject(err);
@@ -175,7 +183,11 @@ request.interceptors.response.use(
     } else {
       // 其他错误
       console.error("[Request Error]", error.message);
-      return Promise.reject(new Error(error.message || "请求失败，请重试"));
+      // 确保错误消息有效，过滤掉 "No message available" 和空消息
+      const errorMsg = error.message && error.message !== 'No message available' && error.message.trim() 
+        ? error.message.trim() 
+        : "请求失败，请重试";
+      return Promise.reject(new Error(errorMsg));
     }
   }
 );

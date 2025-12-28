@@ -29,6 +29,22 @@
         </div>
       </div>
 
+      <!-- Save Message -->
+      <div v-if="saveMessage" class="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg">
+        <div class="flex items-center">
+          <span class="iconify mr-2 text-green-600" data-icon="mdi:check-circle" data-inline="false"></span>
+          <span class="text-green-800 text-sm">{{ saveMessage }}</span>
+        </div>
+      </div>
+
+      <!-- Auto Save Status -->
+      <div v-if="isAutoSaving" class="mb-4 p-2 bg-blue-50 border border-blue-200 rounded-lg">
+        <div class="flex items-center">
+          <span class="iconify mr-2 text-blue-600 animate-spin" data-icon="mdi:loading" data-inline="false"></span>
+          <span class="text-blue-800 text-sm">正在自动保存...</span>
+        </div>
+      </div>
+
       <!-- Form -->
       <div class="bg-white rounded-xl shadow-sm p-8">
         <!-- Step 1: Interests Survey -->
@@ -967,7 +983,7 @@
 </template>
 
 <script>
-import { submitQuestionnaire, getQuestionnaire } from '@/api/questionnaire'
+import { submitQuestionnaire, getQuestionnaire, updateQuestionnaire } from '@/api/questionnaire'
 import { useAuthStore } from '@/stores/auth'
 
 export default {
@@ -978,6 +994,9 @@ export default {
       totalSteps: 15,
       isLoading: false,
       isSaving: false,
+      isAutoSaving: false,
+      saveMessage: '',
+      autoSaveTimer: null,
       errorMessage: '',
       formData: {
         interests: [],
@@ -1239,19 +1258,127 @@ export default {
       }
       return this.formData.ageRequirement.minAge <= this.formData.ageRequirement.maxAge
     },
+
+    // 自动保存功能
+    debounceAutoSave() {
+      // 清除之前的定时器
+      if (this.autoSaveTimer) {
+        clearTimeout(this.autoSaveTimer)
+      }
+      
+      // 设置新的定时器，5秒后执行自动保存
+      this.autoSaveTimer = setTimeout(() => {
+        this.autoSave()
+      }, 5000)
+    },
+
+    async autoSave() {
+      if (this.isAutoSaving || this.isSaving) {
+        return
+      }
+
+      // 只在有部分数据时自动保存
+      const hasData = this.hasPartialData()
+      if (!hasData) {
+        return
+      }
+
+      this.isAutoSaving = true
+      this.saveMessage = ''
+
+      try {
+        const authStore = useAuthStore()
+        const userId = authStore.userId
+        
+        if (!userId) {
+          return
+        }
+
+        // 准备提交的数据（不包含额外要求）
+        const questionnaireData = {
+          userId,
+          interests: this.formData.interests,
+          socialEnergy: this.formData.socialEnergy,
+          decisionMaking: this.formData.decisionMaking,
+          lifeRhythm: this.formData.lifeRhythm,
+          communicationStyle: this.formData.communicationStyle,
+          preferredSocialStyle: this.formData.preferredSocialStyle,
+          preferredLifestyle: this.formData.preferredLifestyle,
+          preferredInterests: this.formData.preferredInterests,
+          relationshipQualities: this.formData.relationshipQualities,
+          preferredRelationshipMode: this.formData.preferredRelationshipMode,
+          communicationExpectation: this.formData.communicationExpectation,
+          ageRequirement: {
+            unlimited: this.formData.ageRequirement.unlimited,
+            minAge: this.formData.ageRequirement.unlimited ? null : this.formData.ageRequirement.minAge,
+            maxAge: this.formData.ageRequirement.unlimited ? null : this.formData.ageRequirement.maxAge
+          },
+          distanceRequirement: this.formData.distanceRequirement,
+          mustHaveQualities: this.formData.mustHaveQualities,
+          priorityQualities: this.formData.priorityQualities
+          // 不包含 additionalRequirements，因为它可能为空且不是必需的
+        }
+
+        // 先尝试使用PUT更新，如果失败（404），则使用POST创建
+        try {
+          await updateQuestionnaire(questionnaireData)
+        } catch (updateError) {
+          // 如果是404错误，说明数据不存在，使用POST创建
+          if (updateError.status === 404 || updateError.response?.status === 404) {
+            await submitQuestionnaire(questionnaireData)
+          } else {
+            // 其他错误直接抛出
+            throw updateError
+          }
+        }
+        
+        this.saveMessage = '草稿已自动保存'
+        setTimeout(() => {
+          this.saveMessage = ''
+        }, 3000)
+        
+      } catch (error) {
+        // 自动保存失败不显示错误给用户，避免干扰填写体验
+        console.warn('自动保存失败:', error)
+      } finally {
+        this.isAutoSaving = false
+      }
+    },
+
+    // 检查是否有部分数据需要保存
+    hasPartialData() {
+      const data = this.formData
+      return (
+        data.interests.length > 0 ||
+        data.socialEnergy ||
+        data.decisionMaking ||
+        data.lifeRhythm ||
+        data.communicationStyle ||
+        data.preferredSocialStyle ||
+        data.preferredLifestyle ||
+        data.preferredInterests ||
+        data.relationshipQualities.length > 0 ||
+        data.preferredRelationshipMode ||
+        data.communicationExpectation ||
+        data.distanceRequirement ||
+        data.mustHaveQualities.length > 0 ||
+        data.priorityQualities.length > 0 ||
+        (!data.ageRequirement.unlimited && data.ageRequirement.minAge !== 18) ||
+        (!data.ageRequirement.unlimited && data.ageRequirement.maxAge !== 30)
+      )
+    },
     async nextStep() {
       if (!this.canProceed) {
         return
       }
       
-      // 如果是倒数第二步（第14步），保存数据后进入完成页面
+      // 如果是第14步（最后一步），保存数据
       if (this.currentStep === this.totalSteps - 1) {
         await this.submitQuestionnaireData()
-        // 如果保存成功，会自动进入下一步（完成页面）
         return
       }
       
-      // 否则进入下一步
+      // 进入下一步
       if (this.currentStep < this.totalSteps) {
         this.currentStep++
       }
@@ -1297,18 +1424,103 @@ export default {
           additionalRequirements: this.formData.additionalRequirements || ''
         }
         
-        // 调用API保存数据
-        await submitQuestionnaire(questionnaireData)
+        // 调用API保存数据（最终提交时使用POST，确保创建或更新）
+        // 先尝试PUT更新，如果失败则使用POST创建
+        try {
+          await updateQuestionnaire(questionnaireData)
+        } catch (updateError) {
+          // 如果是404错误，说明数据不存在，使用POST创建
+          if (updateError.status === 404 || updateError.response?.status === 404) {
+            await submitQuestionnaire(questionnaireData)
+          } else {
+            // 其他错误直接抛出
+            throw updateError
+          }
+        }
         
-        // 保存成功，进入完成页面（第15步）
+        // 保存成功提示
+        this.saveMessage = '问卷提交成功！'
+        setTimeout(() => {
+          this.saveMessage = ''
+        }, 3000)
+        
+        // 进入完成页面（第15步）
         if (this.currentStep < this.totalSteps) {
           this.currentStep++
         }
       } catch (error) {
-        console.error('保存问卷失败:', error)
-        this.errorMessage = error.message || '保存问卷失败，请重试'
-        // 可以在这里添加错误提示，比如使用 toast 或 alert
-        alert(this.errorMessage)
+        // 详细记录错误信息，便于调试
+        console.error('保存问卷失败 - 完整错误对象:', {
+          error,
+          message: error?.message,
+          status: error?.status,
+          response: error?.response,
+          httpData: error?.httpData,
+          responseData: error?.response?.data
+        })
+        
+        // 从多个可能的来源获取错误消息，按优先级顺序
+        let errorMsg = ''
+        
+        // 1. 检查 error.message（最直接）
+        if (error?.message && typeof error.message === 'string' && error.message.trim() && error.message !== 'No message available') {
+          errorMsg = error.message.trim()
+        }
+        // 2. 检查 error.response.data.message（后端返回的错误消息）
+        else if (error?.response?.data?.message && typeof error.response.data.message === 'string' && error.response.data.message.trim()) {
+          errorMsg = error.response.data.message.trim()
+        }
+        // 3. 检查 error.httpData.message（request.js 处理后的错误数据）
+        else if (error?.httpData?.message && typeof error.httpData.message === 'string' && error.httpData.message.trim()) {
+          errorMsg = error.httpData.message.trim()
+        }
+        // 4. 检查 error.response.data.msg（另一种可能的字段名）
+        else if (error?.response?.data?.msg && typeof error.response.data.msg === 'string' && error.response.data.msg.trim()) {
+          errorMsg = error.response.data.msg.trim()
+        }
+        // 5. 根据状态码生成默认消息
+        else if (error?.status || error?.response?.status) {
+          const status = error.status || error.response.status
+          switch (status) {
+            case 400:
+              errorMsg = '请求参数错误，请检查填写的内容'
+              break
+            case 401:
+              errorMsg = '登录已过期，请重新登录'
+              break
+            case 403:
+              errorMsg = '没有权限执行此操作'
+              break
+            case 404:
+              // 404错误可能是后端API未实现
+              const url = error?.config?.url || error?.request?.responseURL || ''
+              if (url.includes('/questionnaire')) {
+                errorMsg = '问卷API接口未实现：后端服务器未找到 /questionnaire 路由。请检查后端是否已实现问卷相关的API接口。'
+              } else {
+                errorMsg = '请求的资源不存在，请检查后端API是否已实现'
+              }
+              break
+            case 500:
+              errorMsg = '服务器内部错误，请稍后重试'
+              break
+            default:
+              errorMsg = `请求失败 (状态码: ${status})`
+          }
+        }
+        // 6. 网络错误
+        else if (error?.request && !error?.response) {
+          errorMsg = '网络连接失败，请检查：1. 后端服务是否运行在 localhost:8080 2. 网络连接是否正常'
+        }
+        
+        // 确保错误消息不为空，使用默认值
+        this.errorMessage = errorMsg || '保存问卷失败，请重试'
+        
+        // 确保不会显示 "No message available" 或空消息
+        if (this.errorMessage === 'No message available' || !this.errorMessage.trim()) {
+          this.errorMessage = '保存问卷失败，请重试'
+        }
+        
+        console.log('最终错误消息:', this.errorMessage)
       } finally {
         this.isSaving = false
       }
@@ -1330,8 +1542,8 @@ export default {
           return
         }
         
-        // 尝试获取已有的问卷数据
-        const existingData = await getQuestionnaire(userId)
+        // 尝试获取已有的问卷数据（不传userId，获取当前登录用户的数据）
+        const existingData = await getQuestionnaire()
         
         // 如果存在数据，填充表单
         if (existingData && typeof existingData === 'object') {
@@ -1379,7 +1591,7 @@ export default {
       } catch (error) {
         // 如果获取失败（比如404），说明用户还没有填写过问卷，这是正常的
         // 只在非404错误时记录
-        if (error.status !== 404) {
+        if (error.response?.status !== 404) {
           console.warn('获取已有问卷数据失败:', error)
         }
       } finally {
@@ -1406,7 +1618,22 @@ export default {
   mounted() {
     // 页面加载时尝试获取已有的问卷数据
     this.loadExistingQuestionnaire()
-  }
+  },
+
+  watch: {
+    // 监控表单数据变化，触发自动保存
+    formData: {
+      handler() {
+        // 只在组件已加载且用户已登录时进行自动保存
+        const authStore = useAuthStore()
+        if (!this.isLoading && authStore.isAuthenticated) {
+          this.debounceAutoSave()
+        }
+      },
+      deep: true,
+      immediate: false
+    }
+  },
 }
 </script>
 

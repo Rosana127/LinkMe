@@ -27,7 +27,7 @@ export function getQuestionnaire(userId = null) {
 }
 
 /**
- * 更新问卷数据
+ * 更新问卷数据（用于自动保存和部分更新）
  * @param {Object} questionnaireData 问卷数据
  * @returns {Promise}
  */
@@ -58,4 +58,5 @@ const questionnaireApi = {
 };
 
 export default questionnaireApi;
+
 
