@@ -40,6 +40,15 @@
             </div>
             <button class="settings-btn">Change</button>
           </div>
+          <div class="settings-item">
+            <div class="item-info">
+              <h3>AI 助手</h3>
+              <p>启用对话情感分析与建议</p>
+            </div>
+            <button class="settings-btn" @click="toggleAI">
+              {{ aiEnabled ? '关闭' : '开启' }}
+            </button>
+          </div>
         </div>
 
         <!-- Support -->
@@ -217,12 +226,13 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { getUserInfo, updateUserInfo } from '@/api/user'
 import { fetchTagDefinitions } from '@/api/tags'
 import { parseJwtPayload, buildUpdatePayload as utilBuildUpdatePayload, extractServerMessage as utilExtractServerMessage } from '@/utils/settingsProfile'
+import * as aiApi from '@/api/ai'
 
 const router = useRouter()
 const authStore = useAuthStore()
@@ -267,6 +277,32 @@ const DEFAULT_TAGS = [
 // 开发时显示请求/响应的调试开关
 const DEBUG_MODE = import.meta.env.DEV === true
 const debugInfo = ref({ request: null, response: null })
+
+// AI助手开关
+const aiEnabled = ref(true)
+async function loadAIStatus() {
+  try {
+    const res = await aiApi.getStatus()
+    const data = res?.data || res
+    aiEnabled.value = !!data?.enabled
+  } catch (e) {
+    aiEnabled.value = true
+  }
+}
+async function toggleAI() {
+  try {
+    if (aiEnabled.value) {
+      await aiApi.disableAI()
+      aiEnabled.value = false
+    } else {
+      await aiApi.enableAI()
+      aiEnabled.value = true
+    }
+  } catch (e) {
+    // 简单回退：不改变本地状态
+  }
+}
+onMounted(loadAIStatus)
 
 // 小函数：尝试从 store 或 token 中获得 userId
 function resolveUserId() {

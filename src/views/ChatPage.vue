@@ -683,11 +683,26 @@ function formatTime(ts) {
 }
 
 // AI 建议
+const aiEnabled = ref(true);
 const aiSuggestion = ref("正在分析...");
 const aiTip = ref("正在分析对话...");
 const isAnalyzing = ref(false);
 const aiRetryCount = ref(0);
 const aiRetryTimer = ref(null);
+
+const loadAIStatus = async () => {
+  try {
+    const res = await aiApi.getStatus();
+    const data = res?.data || res;
+    aiEnabled.value = !!data?.enabled;
+    if (!aiEnabled.value) {
+      aiSuggestion.value = "AI已关闭";
+      aiTip.value = "AI助手已关闭";
+    }
+  } catch (e) {
+    aiEnabled.value = true;
+  }
+};
 
 const getAIAnalysis = async (isRetry = false) => {
   // Clear any existing retry timer if this is a fresh call
@@ -698,6 +713,13 @@ const getAIAnalysis = async (isRetry = false) => {
 
   if (!isRetry) {
       aiRetryCount.value = 0;
+  }
+
+  if (!aiEnabled.value) {
+    isAnalyzing.value = false;
+    aiSuggestion.value = "AI已关闭";
+    aiTip.value = "AI助手已关闭";
+    return;
   }
 
   if (!selectedChat.value || !selectedChat.value.messages || selectedChat.value.messages.length === 0) {
@@ -1671,6 +1693,8 @@ onMounted(async () => {
 
   // 点击页面其他地方关闭下拉菜单
   document.addEventListener("click", closeOptionsMenu);
+
+  await loadAIStatus();
 });
 
 // 组件卸载时移除事件监听
