@@ -10,6 +10,7 @@ import LoginPage from '../views/LoginPage.vue'
 import RegisterPage from '../views/RegisterPage.vue'
 import PostDetail from '../views/PostDetail.vue'
 import UserDetailPage from '../views/UserDetailPage.vue'
+import QuestionnairePage from '../views/QuestionnairePage.vue'
 
 const routes = [
   {
@@ -44,6 +45,12 @@ const routes = [
     path: '/match',
     name: 'match',
     component: MatchPage,
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/questionnaire',
+    name: 'questionnaire',
+    component: QuestionnairePage,
     meta: { requiresAuth: true }
   },
   {

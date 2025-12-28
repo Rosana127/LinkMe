@@ -471,6 +471,7 @@ import { useRoute } from "vue-router";
 import { useAuthStore } from "@/stores/auth";
 import * as chatApi from "@/api/chat";
 import * as userApi from "@/api/user";
+import * as aiApi from "@/api/ai";
 
 // ========== 模块级 WebSocket 单例管理 ==========
 // 将 WebSocket 放在模块级别，避免 HMR 时创建多个实例
@@ -497,6 +498,7 @@ const authStore = useAuthStore();
 const searchQuery = ref("");
 const selectedChatId = ref(null);
 const newMessage = ref("");
+const messageDrafts = ref({}); // 用于存储每个会话的草稿消息
 const activeTab = ref("messages"); // 'messages' 或 'notifications'
 const messagesContainer = ref(null);
 const showOptionsMenu = ref(false); // 控制下拉菜单显示
@@ -681,19 +683,103 @@ function formatTime(ts) {
 }
 
 // AI 建议
-const aiSuggestion = computed(() => {
-  // 简单示例：基于最近一条消息的内容做固定建议，也可以替换为调用 AI 服务
-  const last = selectedChat.value?.messages?.slice(-1)[0];
-  if (!last) return "我很乐意！周六见。";
-  // 如果对方问了问题，建议肯定/约定类回复
-  if (/(吗|吗\?|\?|？|怎么样|怎样)/.test(last.content))
-    return "好的，我同意，我们周末见。";
-  return "听起来不错！我也很期待。";
-});
+const aiSuggestion = ref("正在分析...");
+const aiTip = ref("正在分析对话...");
+const isAnalyzing = ref(false);
+const aiRetryCount = ref(0);
+const aiRetryTimer = ref(null);
 
-const aiTip = computed(() => {
-  return "你们的对话进展很顺利！注意保持自然的交流节奏。";
-});
+const getAIAnalysis = async (isRetry = false) => {
+  // Clear any existing retry timer if this is a fresh call
+  if (!isRetry && aiRetryTimer.value) {
+      clearTimeout(aiRetryTimer.value);
+      aiRetryTimer.value = null;
+  }
+
+  if (!isRetry) {
+      aiRetryCount.value = 0;
+  }
+
+  if (!selectedChat.value || !selectedChat.value.messages || selectedChat.value.messages.length === 0) {
+    aiSuggestion.value = "暂无建议";
+    aiTip.value = "开始一段新的对话吧！";
+    return;
+  }
+
+  const currentChatId = selectedChat.value.id;
+
+  isAnalyzing.value = true;
+  if (!isRetry) {
+      aiSuggestion.value = "正在思考...";
+      aiTip.value = "正在分析...";
+  }
+  
+  try {
+    // Format messages for backend
+    const messages = selectedChat.value.messages.map(m => 
+      `${m.isFromUser ? '我' : (selectedChat.value.name || '对方')}: ${m.content}`
+    );
+
+    const res = await aiApi.analyzeChat({
+      messages,
+      otherUserName: selectedChat.value.name,
+      myName: authStore.user?.nickname || '我'
+    });
+
+    // If chat changed while we were waiting, discard result
+    if (selectedChat.value?.id !== currentChatId) return;
+
+    if (res) {
+        // 兼容直接返回对象或嵌套在data中的情况
+        const data = res.data || res;
+        
+        // Check for backend fallback message
+        if (data.tip && data.tip.includes("AI服务暂时不可用")) {
+            throw new Error("AI Service Unavailable");
+        }
+
+        if (data.suggestion) aiSuggestion.value = data.suggestion;
+        if (data.tip) aiTip.value = data.tip;
+        aiRetryCount.value = 0; // Success
+    }
+  } catch (e) {
+    // If chat changed, don't retry for the old chat
+    if (selectedChat.value?.id !== currentChatId) return;
+
+    console.error("AI分析失败", e);
+    
+    if (aiRetryCount.value < 3) {
+        aiRetryCount.value++;
+        aiSuggestion.value = `请求失败，3秒后自动重试 (${aiRetryCount.value}/3)...`;
+        aiTip.value = "正在尝试重新连接AI服务...";
+        
+        aiRetryTimer.value = setTimeout(() => {
+            getAIAnalysis(true);
+        }, 3000);
+        return; 
+    }
+
+    aiSuggestion.value = "无法获取建议";
+    aiTip.value = "AI服务暂时不可用，请保持真诚的交流。";
+  } finally {
+    if (selectedChat.value?.id === currentChatId) {
+        if (aiRetryCount.value >= 3 || (aiSuggestion.value !== "无法获取建议" && !aiSuggestion.value.includes("重试"))) {
+            isAnalyzing.value = false;
+        }
+    }
+  }
+};
+
+// 监听消息变化，自动触发AI分析（防抖）
+let aiDebounceTimer = null;
+watch(() => selectedChat.value?.messages, (newVal) => {
+    if (newVal && newVal.length > 0) {
+        if (aiDebounceTimer) clearTimeout(aiDebounceTimer);
+        aiDebounceTimer = setTimeout(() => {
+            getAIAnalysis();
+        }, 2000); // 2秒防抖，避免频繁调用
+    }
+}, { deep: true });
 
 // 将后端会话结构映射为前端展示结构
 function mapConversationToChat(conv) {
@@ -1131,7 +1217,7 @@ const sendMessage = async () => {
 };
 
 const useAISuggestion = () => {
-  newMessage.value = "我很乐意！周六见。";
+  newMessage.value = aiSuggestion.value;
 };
 
 // 切换关注状态
@@ -1264,7 +1350,20 @@ const scrollToBottom = () => {
     messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight;
 };
 
-watch(selectedChatId, () => {
+watch(selectedChatId, (newId, oldId) => {
+  // 切换会话时保存/恢复草稿
+  if (oldId) {
+    messageDrafts.value[oldId] = newMessage.value;
+  }
+  
+  if (newId) {
+    newMessage.value = messageDrafts.value[newId] || "";
+    // 切换会话时触发AI分析
+    getAIAnalysis();
+  } else {
+    newMessage.value = "";
+  }
+
   nextTick(() => scrollToBottom());
 });
 
