@@ -412,9 +412,13 @@
           >
             <div class="flex justify-between items-center">
               <span class="text-sm flex-1 text-purple-200"
-                >尝试这样回复：{{ aiSuggestion }}</span
+                >
+                <span v-if="aiEnabled && !aiSuggestion.includes('AI已关闭') && !aiSuggestion.includes('无法获取') && !aiSuggestion.includes('暂无建议')">尝试这样回复：{{ aiSuggestion }}</span>
+                <span v-else>{{ aiSuggestion }}</span>
+              </span
               >
               <button
+                v-if="aiEnabled && !aiSuggestion.includes('正在') && !aiSuggestion.includes('AI已关闭') && !aiSuggestion.includes('无法获取') && !aiSuggestion.includes('暂无建议')"
                 @click="useAISuggestion"
                 class="px-3 py-1 bg-purple-600 text-white rounded-lg text-sm hover:bg-purple-700 transition-colors"
               >
