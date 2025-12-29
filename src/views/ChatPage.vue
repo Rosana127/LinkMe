@@ -131,6 +131,15 @@
                   <p class="text-xs text-gray-400 truncate flex-1 mr-2">
                     {{ chat.lastMessage }}
                   </p>
+                  <!-- 匹配列表标识：爱心图标，放在气泡最右侧 -->
+                  <span
+                    v-if="chat.isFromMatch"
+                    class="iconify text-red-500 ml-1 flex-shrink-0"
+                    data-icon="mdi:heart"
+                    data-inline="false"
+                    title="来自匹配列表"
+                    style="font-size: 1.125rem; width: 1.125rem; height: 1.125rem;"
+                  ></span>
                   <!-- 未读消息显示：免打扰时显示圆点，否则显示数字 -->
                   <span
                     v-if="chat.unreadCount && chat.unreadCount > 0"
@@ -854,6 +863,35 @@ const getAIAnalysis = async (isRetry = false) => {
 
 // 监听消息变化，自动触发AI分析（防抖）
 let aiDebounceTimer = null;
+
+// 本地存储匹配来源标记的 key
+const MATCH_FROM_LOCAL_KEY = "match_from_list";
+
+// 读取本地的匹配标记（按对方 userId 存）
+function loadMatchFlags() {
+  try {
+    const raw = localStorage.getItem(MATCH_FROM_LOCAL_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch (e) {
+    console.warn("读取匹配标记失败:", e);
+    return {};
+  }
+}
+
+// 保存/追加一个匹配标记
+function saveMatchFlag(userId) {
+  if (!userId) return;
+  const key = String(userId);
+  const flags = loadMatchFlags();
+  flags[key] = true;
+  try {
+    localStorage.setItem(MATCH_FROM_LOCAL_KEY, JSON.stringify(flags));
+  } catch (e) {
+    console.warn("保存匹配标记失败:", e);
+  }
+}
 watch(() => selectedChat.value?.messages, (newVal) => {
     if (newVal && newVal.length > 0) {
         if (aiDebounceTimer) clearTimeout(aiDebounceTimer);
@@ -886,6 +924,11 @@ function mapConversationToChat(conv) {
     conv.last_message_time ??
     conv.updatedAt ??
     conv.updated_at;
+  // 从本地标记中恢复是否来自匹配列表
+  const localMatchFlags = loadMatchFlags();
+  const isFromMatchLocal =
+    otherId && localMatchFlags[String(otherId)] ? true : false;
+
   return {
     id,
     name,
@@ -898,6 +941,7 @@ function mapConversationToChat(conv) {
     otherId,
     isMuted: conv.isMuted ?? false,
     isPinned: conv.isPinned ?? false,
+    isFromMatch: conv.isFromMatch ?? isFromMatchLocal ?? false,
   };
 }
 
@@ -1040,7 +1084,7 @@ const selectChat = async (chatId) => {
 };
 
 // 根据 userId 创建或选择聊天
-const createOrSelectChatByUserId = async (userId) => {
+const createOrSelectChatByUserId = async (userId, isFromMatch = false) => {
   if (!userId) {
     console.log("createOrSelectChatByUserId: userId 为空");
     return;
@@ -1079,11 +1123,18 @@ const createOrSelectChatByUserId = async (userId) => {
 
   if (existingChat) {
     // 如果已存在，直接选择该聊天
+    if (isFromMatch) {
+      existingChat.isFromMatch = true;
+      // 持久化到本地，刷新后还能恢复
+      saveMatchFlag(existingChat.otherId || targetUserId);
+    }
     console.log(
       "找到已存在的聊天，ID:",
       existingChat.id,
       "otherId:",
-      existingChat.otherId
+      existingChat.otherId,
+      "isFromMatch:",
+      existingChat.isFromMatch
     );
     await selectChat(existingChat.id);
     return;
@@ -1132,6 +1183,10 @@ const createOrSelectChatByUserId = async (userId) => {
       // 如果响应中包含了完整的会话数据，直接添加到聊天列表
       if (conversationData) {
         const newChat = mapConversationToChat(conversationData);
+        if (isFromMatch) {
+          newChat.isFromMatch = true;
+          saveMatchFlag(newChat.otherId || targetUserId);
+        }
         console.log("映射后的新聊天对象:", newChat);
 
         // 检查是否已存在（避免重复）
@@ -1139,6 +1194,13 @@ const createOrSelectChatByUserId = async (userId) => {
         if (!exists) {
           chats.value.push(newChat);
           console.log("新聊天已添加到列表");
+        } else {
+          // 如果已存在，更新标识
+          const existingChat = chats.value.find((c) => c.id === newChat.id);
+          if (existingChat && isFromMatch) {
+            existingChat.isFromMatch = true;
+            saveMatchFlag(existingChat.otherId || targetUserId);
+          }
         }
 
         // 选择新创建的聊天
@@ -1170,6 +1232,10 @@ const createOrSelectChatByUserId = async (userId) => {
         });
 
         if (newChat) {
+          if (isFromMatch) {
+            newChat.isFromMatch = true;
+            saveMatchFlag(newChat.otherId || targetUserId);
+          }
           console.log("选择新创建的聊天，ID:", newChat.id);
           await selectChat(newChat.id);
         } else {
@@ -1179,6 +1245,12 @@ const createOrSelectChatByUserId = async (userId) => {
             conversationId
           );
           await selectChat(conversationId);
+          // 如果是从匹配列表来的，更新标识
+          const chatById = chats.value.find((c) => c.id === conversationId);
+          if (chatById && isFromMatch) {
+            chatById.isFromMatch = true;
+            saveMatchFlag(chatById.otherId || targetUserId);
+          }
         }
       }
     } else {
@@ -1201,6 +1273,11 @@ const createOrSelectChatByUserId = async (userId) => {
       );
     });
     if (existingChatAfterReload) {
+      // 如果是从匹配列表来的，更新标识
+      if (isFromMatch) {
+        existingChatAfterReload.isFromMatch = true;
+        saveMatchFlag(existingChatAfterReload.otherId || targetUserId);
+      }
       console.log("重新加载后找到已存在的聊天:", existingChatAfterReload.id);
       await selectChat(existingChatAfterReload.id);
     } else {
@@ -1745,11 +1822,12 @@ onMounted(async () => {
 
   // 检查路由参数，如果有 userId，创建或选择对应的聊天
   const userId = route.params.userId;
+  const isFromMatch = route.query.fromMatch === 'true';
   if (userId) {
-    console.log("从路由参数获取到 userId:", userId);
+    console.log("从路由参数获取到 userId:", userId, "isFromMatch:", isFromMatch);
     // 等待会话列表加载完成后再创建/选择聊天
     await nextTick();
-    await createOrSelectChatByUserId(userId);
+    await createOrSelectChatByUserId(userId, isFromMatch);
   }
 
   // 点击页面其他地方关闭下拉菜单

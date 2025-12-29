@@ -282,15 +282,34 @@ const likeUser = () => {
     // 添加喜欢
     likedUsers.value.add(userId)
     console.log('喜欢用户:', currentMatch.value.name)
-    // 可以在这里添加提示动画或消息
+    
+    // 跳转到聊天页面，并标记为来自匹配列表
+    const targetUserId = currentMatch.value?.id
+    if (targetUserId) {
+      router.push({
+        name: 'chat',
+        params: { userId: targetUserId },
+        query: { fromMatch: 'true' }
+      })
+    }
   }
 }
 
 // 发起聊天
 const startChat = () => {
-  console.log('发起聊天，用户:', currentMatch.value.name)
-  // 这里可以添加跳转到聊天页面的逻辑
-  // router.push(`/chat/${currentMatch.value.id}`)
+  const targetUserId = currentMatch.value?.id
+  if (!targetUserId) {
+    console.warn('发起聊天失败：当前用户缺少 id', currentMatch.value)
+    return
+  }
+
+  // 跳转到聊天页并携带 userId，ChatPage 会根据该参数创建/选择会话
+  // 标记为来自匹配列表
+  router.push({
+    name: 'chat',
+    params: { userId: targetUserId },
+    query: { fromMatch: 'true' }
+  })
 }
 
 // 高匹配度用户列表
@@ -398,7 +417,23 @@ const loadMatchedUsers = async () => {
     console.log('用户数量:', usersData.length)
     
     if (usersData.length > 0) {
-      matches.value = formatUsersData(usersData)
+      // 获取当前用户ID
+      const currentUserId = authStore.userId
+      console.log('当前用户ID:', currentUserId)
+      
+      // 过滤掉当前用户自己的信息
+      const filteredUsersData = usersData.filter(user => {
+        const userId = user.userId || user.id || user.user_id
+        const isNotCurrentUser = userId !== currentUserId && String(userId) !== String(currentUserId)
+        if (!isNotCurrentUser) {
+          console.log('过滤掉当前用户自己的信息，用户ID:', userId)
+        }
+        return isNotCurrentUser
+      })
+      
+      console.log('过滤后的用户数量:', filteredUsersData.length)
+      
+      matches.value = formatUsersData(filteredUsersData)
       console.log('✅ 加载用户成功，数量:', matches.value.length)
       console.log('格式化后的用户列表:', matches.value)
     } else {
