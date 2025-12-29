@@ -1176,6 +1176,62 @@ export default {
     }
   },
   methods: {
+    buildQuestionnairePayload(userId, includeAdditional) {
+      const ageUnlimited = this.formData.ageRequirement.unlimited
+      const ageMin = ageUnlimited ? null : this.formData.ageRequirement.minAge
+      const ageMax = ageUnlimited ? null : this.formData.ageRequirement.maxAge
+      const dpMap = {
+        same_city_priority: 'same_city',
+        both_ok: 'same_city_or_remote',
+        no_limit: 'unlimited'
+      }
+      const rmMap = {
+        high_frequency: 1,
+        deep_communication: 2,
+        casual_companion: 3,
+        interest_buddy: 4
+      }
+      const ceMap = {
+        instant_reply: 1,
+        casual_reply: 2,
+        timely_communication: 3
+      }
+      const rqNameMap = {
+        sincere_frank: '真诚坦率',
+        mutual_understanding: '相互理解',
+        mutual_trust: '彼此信任',
+        tolerant_respectful: '包容尊重',
+        interesting_compatible: '有趣合拍',
+        shared_values: '三观一致'
+      }
+      const dimIdMap = {
+        age_range: 1,
+        distance: 2,
+        interest_overlap: 3,
+        personality_compatibility: 4,
+        relationship_mode: 5,
+        communication_style: 6
+      }
+      const mustCodes = this.formData.mustHaveQualities.includes('no_requirement') ? [] : this.formData.mustHaveQualities
+      const prioCodes = this.formData.priorityQualities.includes('no_requirement') ? [] : this.formData.priorityQualities
+      const priorityOrder = ['high', 'medium', 'low']
+      const payload = {
+        userId,
+        ageMin,
+        ageMax,
+        ageUnlimited,
+        distancePreference: dpMap[this.formData.distanceRequirement] || null,
+        relationshipModeId: rmMap[this.formData.preferredRelationshipMode] || null,
+        communicationExpectationId: ceMap[this.formData.communicationExpectation] || null,
+        relationshipQualities: this.formData.relationshipQualities.map(c => rqNameMap[c]).filter(Boolean),
+        mustDimensions: mustCodes.map(c => dimIdMap[c]).filter(Boolean),
+        priorityDimensions: prioCodes.slice(0, 3).map((c, idx) => ({ dimensionId: dimIdMap[c], priority: priorityOrder[idx] })).filter(d => d.dimensionId)
+      }
+      if (includeAdditional) {
+        payload.additionalRequirements = this.formData.additionalRequirements || ''
+      }
+      return payload
+    },
     toggleInterest(interestId) {
       const index = this.formData.interests.indexOf(interestId)
       if (index > -1) {
@@ -1294,30 +1350,7 @@ export default {
           return
         }
 
-        // 准备提交的数据（不包含额外要求）
-        const questionnaireData = {
-          userId,
-          interests: this.formData.interests,
-          socialEnergy: this.formData.socialEnergy,
-          decisionMaking: this.formData.decisionMaking,
-          lifeRhythm: this.formData.lifeRhythm,
-          communicationStyle: this.formData.communicationStyle,
-          preferredSocialStyle: this.formData.preferredSocialStyle,
-          preferredLifestyle: this.formData.preferredLifestyle,
-          preferredInterests: this.formData.preferredInterests,
-          relationshipQualities: this.formData.relationshipQualities,
-          preferredRelationshipMode: this.formData.preferredRelationshipMode,
-          communicationExpectation: this.formData.communicationExpectation,
-          ageRequirement: {
-            unlimited: this.formData.ageRequirement.unlimited,
-            minAge: this.formData.ageRequirement.unlimited ? null : this.formData.ageRequirement.minAge,
-            maxAge: this.formData.ageRequirement.unlimited ? null : this.formData.ageRequirement.maxAge
-          },
-          distanceRequirement: this.formData.distanceRequirement,
-          mustHaveQualities: this.formData.mustHaveQualities,
-          priorityQualities: this.formData.priorityQualities
-          // 不包含 additionalRequirements，因为它可能为空且不是必需的
-        }
+        const questionnaireData = this.buildQuestionnairePayload(userId, false)
 
         // 先尝试使用PUT更新，如果失败（404），则使用POST创建
         try {
@@ -1400,29 +1433,7 @@ export default {
         }
         
         // 准备提交的数据
-        const questionnaireData = {
-          userId,
-          interests: this.formData.interests,
-          socialEnergy: this.formData.socialEnergy,
-          decisionMaking: this.formData.decisionMaking,
-          lifeRhythm: this.formData.lifeRhythm,
-          communicationStyle: this.formData.communicationStyle,
-          preferredSocialStyle: this.formData.preferredSocialStyle,
-          preferredLifestyle: this.formData.preferredLifestyle,
-          preferredInterests: this.formData.preferredInterests,
-          relationshipQualities: this.formData.relationshipQualities,
-          preferredRelationshipMode: this.formData.preferredRelationshipMode,
-          communicationExpectation: this.formData.communicationExpectation,
-          ageRequirement: {
-            unlimited: this.formData.ageRequirement.unlimited,
-            minAge: this.formData.ageRequirement.unlimited ? null : this.formData.ageRequirement.minAge,
-            maxAge: this.formData.ageRequirement.unlimited ? null : this.formData.ageRequirement.maxAge
-          },
-          distanceRequirement: this.formData.distanceRequirement,
-          mustHaveQualities: this.formData.mustHaveQualities,
-          priorityQualities: this.formData.priorityQualities,
-          additionalRequirements: this.formData.additionalRequirements || ''
-        }
+        const questionnaireData = this.buildQuestionnairePayload(userId, true)
         
         // 调用API保存数据（最终提交时使用POST，确保创建或更新）
         // 先尝试PUT更新，如果失败则使用POST创建
@@ -1547,42 +1558,52 @@ export default {
         
         // 如果存在数据，填充表单
         if (existingData && typeof existingData === 'object') {
-          if (existingData.interests) {
-            this.formData.interests = Array.isArray(existingData.interests) 
-              ? existingData.interests 
-              : []
+          const ageUnlimited = !!existingData.ageUnlimited
+          const ageMin = existingData.ageMin != null ? existingData.ageMin : 18
+          const ageMax = existingData.ageMax != null ? existingData.ageMax : 30
+          this.formData.ageRequirement = { unlimited: ageUnlimited, minAge: ageMin, maxAge: ageMax }
+          if (existingData.distancePreference) {
+            const dp = existingData.distancePreference
+            this.formData.distanceRequirement = dp === 'same_city' ? 'same_city_priority' : dp === 'same_city_or_remote' ? 'both_ok' : 'no_limit'
           }
-          if (existingData.socialEnergy) this.formData.socialEnergy = existingData.socialEnergy
-          if (existingData.decisionMaking) this.formData.decisionMaking = existingData.decisionMaking
-          if (existingData.lifeRhythm) this.formData.lifeRhythm = existingData.lifeRhythm
-          if (existingData.communicationStyle) this.formData.communicationStyle = existingData.communicationStyle
-          if (existingData.preferredSocialStyle) this.formData.preferredSocialStyle = existingData.preferredSocialStyle
-          if (existingData.preferredLifestyle) this.formData.preferredLifestyle = existingData.preferredLifestyle
-          if (existingData.preferredInterests) this.formData.preferredInterests = existingData.preferredInterests
-          if (existingData.relationshipQualities) {
-            this.formData.relationshipQualities = Array.isArray(existingData.relationshipQualities) 
-              ? existingData.relationshipQualities 
-              : []
+          if (existingData.relationshipModeId) {
+            const id = existingData.relationshipModeId
+            const map = { 1: 'high_frequency', 2: 'deep_communication', 3: 'casual_companion', 4: 'interest_buddy' }
+            this.formData.preferredRelationshipMode = map[id] || ''
           }
-          if (existingData.preferredRelationshipMode) this.formData.preferredRelationshipMode = existingData.preferredRelationshipMode
-          if (existingData.communicationExpectation) this.formData.communicationExpectation = existingData.communicationExpectation
-          if (existingData.ageRequirement) {
-            this.formData.ageRequirement = {
-              unlimited: existingData.ageRequirement.unlimited || false,
-              minAge: existingData.ageRequirement.minAge || 18,
-              maxAge: existingData.ageRequirement.maxAge || 30
+          if (existingData.communicationExpectationId) {
+            const id = existingData.communicationExpectationId
+            const map = { 1: 'instant_reply', 2: 'casual_reply', 3: 'timely_communication' }
+            this.formData.communicationExpectation = map[id] || ''
+          }
+          if (existingData.relationshipQualities && Array.isArray(existingData.relationshipQualities)) {
+            const nameToCode = {
+              '真诚坦率': 'sincere_frank',
+              '相互理解': 'mutual_understanding',
+              '彼此信任': 'mutual_trust',
+              '包容尊重': 'tolerant_respectful',
+              '有趣合拍': 'interesting_compatible',
+              '三观一致': 'shared_values'
             }
+            this.formData.relationshipQualities = existingData.relationshipQualities
+              .map(q => q.qualityName)
+              .filter(Boolean)
+              .map(n => nameToCode[n])
+              .filter(Boolean)
           }
-          if (existingData.distanceRequirement) this.formData.distanceRequirement = existingData.distanceRequirement
-          if (existingData.mustHaveQualities) {
-            this.formData.mustHaveQualities = Array.isArray(existingData.mustHaveQualities) 
-              ? existingData.mustHaveQualities 
-              : []
+          if (existingData.mustDimensions && Array.isArray(existingData.mustDimensions)) {
+            const idToCode = { 1: 'age_range', 2: 'distance', 3: 'interest_overlap', 4: 'personality_match', 5: 'relationship_mode', 6: 'communication_style' }
+            this.formData.mustHaveQualities = existingData.mustDimensions
+              .map(d => d.dimensionId)
+              .map(id => idToCode[id])
+              .filter(Boolean)
           }
-          if (existingData.priorityQualities) {
-            this.formData.priorityQualities = Array.isArray(existingData.priorityQualities) 
-              ? existingData.priorityQualities 
-              : []
+          if (existingData.priorityDimensions && Array.isArray(existingData.priorityDimensions)) {
+            const idToCode = { 1: 'age_range', 2: 'distance', 3: 'interest_overlap', 4: 'personality_match', 5: 'relationship_mode', 6: 'communication_style' }
+            this.formData.priorityQualities = existingData.priorityDimensions
+              .map(d => d.dimensionId)
+              .map(id => idToCode[id])
+              .filter(Boolean)
           }
           if (existingData.additionalRequirements) {
             this.formData.additionalRequirements = existingData.additionalRequirements
