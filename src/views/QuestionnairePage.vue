@@ -995,6 +995,7 @@ export default {
       isLoading: false,
       isSaving: false,
       isAutoSaving: false,
+      autoSaveDisabled: false,
       saveMessage: '',
       autoSaveTimer: null,
       errorMessage: '',
@@ -1182,39 +1183,30 @@ export default {
       const ageMax = ageUnlimited ? null : this.formData.ageRequirement.maxAge
       const mustCodes = this.formData.mustHaveQualities.includes('no_requirement') ? [] : this.formData.mustHaveQualities
       const prioCodes = this.formData.priorityQualities.includes('no_requirement') ? [] : this.formData.priorityQualities
+      const rqNameMap = Object.fromEntries((this.relationshipQualitiesOptions || []).map(opt => [opt.id, opt.name]))
+      const distanceMap = {
+        same_city_priority: 'same_city',
+        both_ok: 'same_city_or_remote',
+        no_limit: 'unlimited'
+      }
 
       const payload = {
         userId,
-        // user_hobby 表：兴趣爱好（数组，直接使用编码）
-        interests: Array.isArray(this.formData.interests) ? this.formData.interests : [],
-        // user_personality 表：性格特质（直接使用编码）
+        ageMin,
+        ageMax,
+        ageUnlimited,
+        interests: Array.isArray(this.formData.interests) ? this.formData.interests.slice() : [],
         socialEnergy: this.formData.socialEnergy || null,
         decisionMaking: this.formData.decisionMaking || null,
         lifeRhythm: this.formData.lifeRhythm || null,
         communicationStyle: this.formData.communicationStyle || null,
-        // 匹配偏好
         preferredSocialStyle: this.formData.preferredSocialStyle || null,
         preferredLifestyle: this.formData.preferredLifestyle || null,
         preferredInterests: this.formData.preferredInterests || null,
-        // 年龄要求（嵌套对象，按后端文档）
-        ageRequirement: {
-          unlimited: ageUnlimited,
-          minAge: ageMin,
-          maxAge: ageMax
-        },
-        // 距离偏好：直接使用前端编码 same_city_priority / both_ok / no_limit
-        distanceRequirement: this.formData.distanceRequirement || null,
-        // 关系模式：字符串编码
-        preferredRelationshipMode: this.formData.preferredRelationshipMode || null,
-        // 沟通期望：字符串编码
-        communicationExpectation: this.formData.communicationExpectation || null,
-        // 关系品质（数组，直接使用编码）
+        distancePreference: distanceMap[this.formData.distanceRequirement] || null,
         relationshipQualities: Array.isArray(this.formData.relationshipQualities)
-          ? this.formData.relationshipQualities
-          : [],
-        // 必须维度/优先维度（数组，直接使用编码）
-        mustHaveQualities: mustCodes,
-        priorityQualities: prioCodes
+          ? this.formData.relationshipQualities.map(c => rqNameMap[c]).filter(Boolean)
+          : []
       }
       if (includeAdditional) {
         payload.additionalRequirements = this.formData.additionalRequirements || ''
@@ -1306,6 +1298,9 @@ export default {
 
     // 自动保存功能
     debounceAutoSave() {
+      if (this.autoSaveDisabled) {
+        return
+      }
       // 清除之前的定时器
       if (this.autoSaveTimer) {
         clearTimeout(this.autoSaveTimer)
@@ -1318,7 +1313,7 @@ export default {
     },
 
     async autoSave() {
-      if (this.isAutoSaving || this.isSaving) {
+      if (this.autoSaveDisabled || this.isAutoSaving || this.isSaving) {
         return
       }
 
@@ -1419,7 +1414,11 @@ export default {
       if (this.isSaving) {
         return
       }
-      
+      this.autoSaveDisabled = true
+      if (this.autoSaveTimer) {
+        clearTimeout(this.autoSaveTimer)
+        this.autoSaveTimer = null
+      }
       this.isSaving = true
       this.errorMessage = ''
       
@@ -1548,6 +1547,9 @@ export default {
         console.log('最终错误消息:', this.errorMessage)
       } finally {
         this.isSaving = false
+        setTimeout(() => {
+          this.autoSaveDisabled = false
+        }, 6000)
       }
     },
     async loadExistingQuestionnaire() {
@@ -1622,9 +1624,45 @@ export default {
             const map = { 1: 'instant_reply', 2: 'casual_reply', 3: 'timely_communication' }
             this.formData.communicationExpectation = map[id] || ''
           }
+<<<<<<< HEAD
 
           // 关系品质 / 必须维度 / 优先维度：直接使用编码数组
           if (Array.isArray(existingData.relationshipQualities)) {
+=======
+          if (existingData.socialEnergy) {
+            this.formData.socialEnergy = existingData.socialEnergy
+          }
+          if (existingData.decisionMaking) {
+            this.formData.decisionMaking = existingData.decisionMaking
+          }
+          if (existingData.lifeRhythm) {
+            this.formData.lifeRhythm = existingData.lifeRhythm
+          }
+          if (existingData.communicationStyle) {
+            this.formData.communicationStyle = existingData.communicationStyle
+          }
+          if (existingData.preferredSocialStyle) {
+            this.formData.preferredSocialStyle = existingData.preferredSocialStyle
+          }
+          if (existingData.preferredLifestyle) {
+            this.formData.preferredLifestyle = existingData.preferredLifestyle
+          }
+          if (existingData.preferredInterests) {
+            this.formData.preferredInterests = existingData.preferredInterests
+          }
+          if (existingData.interests && Array.isArray(existingData.interests)) {
+            this.formData.interests = existingData.interests
+          }
+          if (existingData.relationshipQualities && Array.isArray(existingData.relationshipQualities)) {
+            const nameToCode = {
+              '真诚坦率': 'sincere_frank',
+              '相互理解': 'mutual_understanding',
+              '彼此信任': 'mutual_trust',
+              '包容尊重': 'tolerant_respectful',
+              '有趣合拍': 'interesting_compatible',
+              '三观一致': 'shared_values'
+            }
+>>>>>>> 17cba10 (草稿箱)
             this.formData.relationshipQualities = existingData.relationshipQualities
           }
           if (Array.isArray(existingData.mustHaveQualities)) {
