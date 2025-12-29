@@ -161,6 +161,27 @@
           </div>
 
           <div class="form-field">
+            <label class="field-label">生日 (Birthday)</label>
+            <input
+              v-model="editForm.birthday"
+              type="date"
+              placeholder="请选择您的生日"
+              class="form-input"
+            >
+          </div>
+
+          <div class="form-field">
+            <label class="field-label">位置 (Location)</label>
+            <input
+              v-model="editForm.location"
+              type="text"
+              placeholder="例如：北京、上海、深圳"
+              class="form-input"
+              maxlength="50"
+            >
+          </div>
+
+          <div class="form-field">
             <label class="field-label">简介 (Bio)</label>
             <textarea 
               v-model="editForm.bio" 
@@ -247,7 +268,9 @@ const saveError = ref(false)
 const editForm = ref({
   nickname: '',
   bio: '',
-  avatar: '' // base64 编码的头像或 URL
+  avatar: '', // base64 编码的头像或 URL
+  birthday: '',
+  location: ''
 })
 
 // 当前用户信息（用于显示原始头像）
@@ -417,6 +440,10 @@ async function loadUserInfo() {
     editForm.value.nickname = userData?.nickname || userData?.username || ''
     editForm.value.bio = userData?.bio || ''
     editForm.value.avatar = userData?.avatar || userData?.avatarUrl || ''
+    // 生日：直接读取后端 birthday（应为 YYYY-MM-DD）
+    editForm.value.birthday = userData?.birthday || ''
+    // 位置：region/location/city 任一即可
+    editForm.value.location = userData?.region || userData?.location || userData?.city || ''
     avatarPreview.value = '' // 重置预览，使用已保存的头像（editForm.value.avatar 会在模板中使用）
     
     // 加载用户标签
@@ -512,7 +539,9 @@ async function saveProfile() {
     console.log('editForm.value:', {
       nickname: editForm.value.nickname,
       bio: editForm.value.bio,
-      avatar: editForm.value.avatar ? '有头像数据（长度: ' + editForm.value.avatar.length + '）' : '无头像数据'
+      avatar: editForm.value.avatar ? '有头像数据（长度: ' + editForm.value.avatar.length + '）' : '无头像数据',
+      birthday: editForm.value.birthday,
+      location: editForm.value.location
     })
     
     if (Object.keys(payload).length === 0) {
@@ -526,6 +555,14 @@ async function saveProfile() {
     if (authStore.user) {
       if (payload.nickname) authStore.user.nickname = payload.nickname
       if (payload.bio) authStore.user.bio = payload.bio
+      // 生日和地区
+      if (payload.birthday) authStore.user.birthday = payload.birthday
+      if (payload.region) {
+        authStore.user.region = payload.region
+        // 同步到 location/city 方便老代码使用
+        authStore.user.location = payload.region
+        authStore.user.city = payload.region
+      }
       if (editForm.value.avatar) {
         authStore.user.avatar = editForm.value.avatar
         authStore.user.avatarUrl = editForm.value.avatar

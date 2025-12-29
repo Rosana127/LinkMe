@@ -207,6 +207,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { getUsersWithQuestionnaire } from '@/api/user'
+import { getQuestionnaire } from '@/api/questionnaire'
 import { useAuthStore } from '@/stores/auth'
 
 const router = useRouter()
@@ -312,49 +313,8 @@ const startChat = () => {
   })
 }
 
-// 高匹配度用户列表
-const highMatchUsers = ref([
-  {
-    id: 1,
-    name: '陈思雨',
-    age: 25,
-    photo: 'https://modao.cc/ai/uploads/ai_pics/32/327751/aigp_1758963754.jpeg',
-    matchScore: 95,
-    isOnline: true
-  },
-  {
-    id: 2,
-    name: '刘浩然',
-    age: 27,
-    photo: 'https://modao.cc/ai/uploads/ai_pics/32/327751/aigp_1758963754.jpeg',
-    matchScore: 88,
-    isOnline: false
-  },
-  {
-    id: 3,
-    name: '赵雅琪',
-    age: 24,
-    photo: 'https://modao.cc/ai/uploads/ai_pics/32/327751/aigp_1758963754.jpeg',
-    matchScore: 85,
-    isOnline: true
-  },
-  {
-    id: 4,
-    name: '孙文博',
-    age: 26,
-    photo: 'https://modao.cc/ai/uploads/ai_pics/32/327751/aigp_1758963754.jpeg',
-    matchScore: 82,
-    isOnline: false
-  },
-  {
-    id: 5,
-    name: '周雨欣',
-    age: 23,
-    photo: 'https://modao.cc/ai/uploads/ai_pics/32/327751/aigp_1758963754.jpeg',
-    matchScore: 80,
-    isOnline: true
-  }
-])
+// 高匹配度用户列表（由后端 /match/recommendations 根据积分规则计算）
+const highMatchUsers = ref([])
 
 // 选中的用户
 const selectedUser = ref(null)
@@ -433,9 +393,14 @@ const loadMatchedUsers = async () => {
       
       console.log('过滤后的用户数量:', filteredUsersData.length)
       
+      // 先格式化用户基本信息
       matches.value = formatUsersData(filteredUsersData)
       console.log('✅ 加载用户成功，数量:', matches.value.length)
-      console.log('格式化后的用户列表:', matches.value)
+      
+      // 为每个用户获取问卷信息（包括兴趣爱好）
+      await loadUserQuestionnaires()
+      
+      console.log('格式化后的用户列表（包含问卷信息）:', matches.value)
     } else {
       console.log('暂无填写过问卷的用户')
       matches.value = [] // 确保为空数组
@@ -453,6 +418,69 @@ const loadMatchedUsers = async () => {
     isLoading.value = false
     console.log('加载完成，最终用户数量:', matches.value.length)
   }
+}
+
+// 兴趣编码到名称的映射（与问卷页保持一致）
+const INTEREST_LABELS = {
+  art: '绘画',
+  photography: '摄影',
+  calligraphy: '书法',
+  writing: '写作',
+  singing: '歌唱',
+  dance: '舞蹈',
+  theater: '戏剧',
+  instrument: '乐器演奏',
+  graphic_design: '平面设计',
+  video_editing: '视频剪辑',
+  reading: '阅读',
+  programming: '编程',
+  teaching: '教学',
+  psychology: '心理学',
+  language_learning: '语言学习',
+  philosophy: '哲学思考',
+  history_research: '历史研究',
+  investment: '投资理财',
+  public_speaking: '公开演讲',
+  entrepreneurship: '创业项目',
+  running: '跑步',
+  fitness: '健身',
+  swimming: '游泳',
+  cycling: '骑行',
+  fishing: '钓鱼',
+  yoga: '瑜伽',
+  camping: '露营',
+  martial_arts: '武术',
+  mountaineering: '登山',
+  climbing: '攀岩',
+  frisbee: '飞盘',
+  team_sports: '球类运动',
+  board_games: '桌游',
+  card_games: '棋牌',
+  magic: '魔术',
+  collecting: '收藏',
+  tv_shows: '追剧',
+  movies: '看电影',
+  music: '听音乐',
+  script_killing: '剧本杀',
+  escape_room: '密室逃脱',
+  gaming: '电子游戏',
+  cooking_baking: '烹饪/烘焙',
+  coffee_tea_mixology: '咖啡/茶艺/调酒',
+  handicraft_diy: '手工 DIY',
+  sewing: '缝纫',
+  home_decoration: '家居装饰',
+  organizing: '收纳整理',
+  floristry_gardening: '花艺绿植',
+  travel: '旅行',
+  bird_watching: '观鸟',
+  music_festival: '音乐节',
+  concert: '演唱会',
+  restaurant_hopping: '探店打卡',
+  exhibition: '展览打卡',
+  astronomy: '天文观测',
+  volunteering: '公益志愿',
+  petting: '撸猫撸狗',
+  city_walk: 'city walk'
 }
 
 // 格式化用户数据
@@ -475,7 +503,10 @@ const formatUsersData = (usersData) => {
     bio: user.bio || user.introduction || user.description || '这个人很懒，什么都没有留下。',
     // 标签和兴趣
     tags: user.tags || [],
-    interests: user.interests || [],
+    // 兴趣初始为空，后续通过 loadUserQuestionnaires 从问卷API加载
+    interests: [],
+    // 匹配度（如果后端有返回则使用，否则默认 0，后续可以在后端补充）
+    matchScore: user.matchScore ?? user.match_score ?? user.score ?? 0,
     // 保留原始数据中的其他字段（如 gender、email、phone 等）
     gender: user.gender,
     email: user.email,
@@ -498,9 +529,279 @@ const calculateAge = (birthday) => {
   return age
 }
 
-// 页面加载时获取匹配用户
+// 将兴趣编码转换为中文名称
+const convertInterestsToLabels = (interestCodes) => {
+  if (!Array.isArray(interestCodes) || interestCodes.length === 0) {
+    return []
+  }
+  return interestCodes
+    .map(code => INTEREST_LABELS[code] || code)
+    .filter(Boolean)
+}
+
+// 为每个用户加载问卷信息（包括兴趣爱好）
+const loadUserQuestionnaires = async () => {
+  console.log('开始为每个用户加载问卷信息...')
+  
+  // 并发获取所有用户的问卷信息
+  const questionnairePromises = matches.value.map(async (match) => {
+    const userId = match.id
+    if (!userId) {
+      console.warn('用户ID为空，跳过问卷加载:', match)
+      return
+    }
+    
+    try {
+      console.log(`正在获取用户 ${userId} 的问卷信息...`)
+      const questionnaire = await getQuestionnaire(userId)
+      
+      // 处理不同的响应格式
+      const qData = questionnaire?.data || questionnaire || {}
+      
+      // 提取兴趣列表（interests 字段）
+      const interests = qData.interests || []
+      
+      if (interests.length > 0) {
+        // 将兴趣编码转换为中文名称
+        const interestLabels = convertInterestsToLabels(interests)
+        
+        // 更新到 matches 数组中
+        const matchIndex = matches.value.findIndex(m => m.id === userId)
+        if (matchIndex >= 0) {
+          matches.value[matchIndex].interests = interestLabels
+          console.log(`✅ 用户 ${userId} 的兴趣爱好已加载:`, interestLabels)
+        }
+      } else {
+        console.log(`用户 ${userId} 的问卷中没有兴趣爱好数据`)
+      }
+    } catch (error) {
+      // 如果获取问卷失败（比如用户没有填写问卷），记录但不中断流程
+      console.warn(`获取用户 ${userId} 的问卷信息失败:`, error.message || error)
+      // 保持 interests 为空数组
+    }
+  })
+  
+  // 等待所有请求完成
+  await Promise.all(questionnairePromises)
+  console.log('✅ 所有用户的问卷信息加载完成')
+}
+
+// 计算两份问卷之间的匹配度（0-100）
+const computeMatchScore = (selfQ, otherQ, otherProfile) => {
+  if (!selfQ || !otherQ) return 0
+
+  let score = 80 // 基础分
+
+  // 1. 年龄偏好：看对方年龄是否在自己的 ageRequirement 范围内
+  const ageReq = selfQ.ageRequirement || {}
+  const otherAge = otherProfile?.age || null
+  if (otherAge != null && ageReq.unlimited === false) {
+    if (
+      typeof ageReq.minAge === 'number' &&
+      typeof ageReq.maxAge === 'number' &&
+      (otherAge < ageReq.minAge || otherAge > ageReq.maxAge)
+    ) {
+      score -= 10
+    }
+  }
+
+  // 2. 距离偏好：如果自己要求同城优先，但城市不同，减分
+  if (selfQ.distanceRequirement === 'same_city_priority') {
+    const selfCity = selfQ.city || selfQ.location || ''
+    const otherCity = otherProfile?.location || otherProfile?.city || ''
+    if (selfCity && otherCity && selfCity !== otherCity) {
+      score -= 5
+    }
+  }
+
+  // 3. 爱好重合：兴趣交集越多，加分（每项 +1，上限 +6）
+  const selfInterests = Array.isArray(selfQ.interests) ? selfQ.interests : []
+  const otherInterests = Array.isArray(otherQ.interests)
+    ? otherQ.interests
+    : []
+  if (selfInterests.length && otherInterests.length) {
+    const set = new Set(selfInterests)
+    let overlap = 0
+    for (const it of otherInterests) {
+      if (set.has(it)) overlap++
+    }
+    score += Math.min(overlap, 6) // 最多加 6 分
+  }
+
+  // 4. 关系品质交集：每项 +2，最多 +6
+  const selfQualities = Array.isArray(selfQ.relationshipQualities)
+    ? selfQ.relationshipQualities
+    : []
+  const otherQualities = Array.isArray(otherQ.relationshipQualities)
+    ? otherQ.relationshipQualities
+    : []
+  if (selfQualities.length && otherQualities.length) {
+    const set = new Set(selfQualities)
+    let overlap = 0
+    for (const q of otherQualities) {
+      if (set.has(q)) overlap++
+    }
+    score += Math.min(overlap * 2, 6)
+  }
+
+  // 5. 关系模式一致：+5
+  if (
+    selfQ.preferredRelationshipMode &&
+    selfQ.preferredRelationshipMode === otherQ.preferredRelationshipMode
+  ) {
+    score += 5
+  }
+
+  // 6. 沟通期待一致：+3
+  if (
+    selfQ.communicationExpectation &&
+    selfQ.communicationExpectation === otherQ.communicationExpectation
+  ) {
+    score += 3
+  }
+
+  // 7. 性格特质匹配：每个维度相同 +1（socialEnergy / decisionMaking / lifeRhythm / communicationStyle）
+  const personalityKeys = [
+    'socialEnergy',
+    'decisionMaking',
+    'lifeRhythm',
+    'communicationStyle'
+  ]
+  for (const key of personalityKeys) {
+    if (selfQ[key] && otherQ[key] && selfQ[key] === otherQ[key]) {
+      score += 1
+    }
+  }
+
+  // 8. must 维度未满足：每项 -10（简化版）
+  const musts = Array.isArray(selfQ.mustHaveQualities)
+    ? selfQ.mustHaveQualities
+    : []
+  for (const m of musts) {
+    switch (m) {
+      case 'age_range':
+        if (otherAge != null && ageReq.unlimited === false) {
+          if (
+            typeof ageReq.minAge === 'number' &&
+            typeof ageReq.maxAge === 'number' &&
+            (otherAge < ageReq.minAge || otherAge > ageReq.maxAge)
+          ) {
+            score -= 10
+          }
+        }
+        break
+      case 'relationship_mode':
+        if (
+          selfQ.preferredRelationshipMode &&
+          selfQ.preferredRelationshipMode !== otherQ.preferredRelationshipMode
+        ) {
+          score -= 10
+        }
+        break
+      case 'communication_style':
+        if (
+          selfQ.communicationStyle &&
+          selfQ.communicationStyle !== otherQ.communicationStyle
+        ) {
+          score -= 10
+        }
+        break
+      case 'interest_overlap':
+        if (!selfInterests.length || !otherInterests.length) {
+          score -= 10
+        }
+        break
+      default:
+        break
+    }
+  }
+
+  // 限制在 0-100 之间
+  if (score > 100) score = 100
+  if (score < 0) score = 0
+  return Math.round(score)
+}
+
+// 加载高匹配度推荐列表（people 侧边栏）
+const loadHighMatchUsers = async () => {
+  try {
+    console.log('开始加载高匹配度推荐列表（基于 /user/with-questionnaire）...')
+
+    const response = await getUsersWithQuestionnaire(0, 50)
+    console.log('高匹配度推荐原始响应:', response)
+
+    let usersData = []
+    if (Array.isArray(response)) {
+      usersData = response
+    } else if (response && typeof response === 'object') {
+      usersData = response.data || response.list || []
+    }
+
+    console.log('解析后的用户数据（高匹配度）:', usersData)
+
+    // 获取当前用户的问卷（self）
+    let selfQuestionnaire = null
+    try {
+      selfQuestionnaire = await getQuestionnaire()
+      console.log('当前用户问卷数据:', selfQuestionnaire)
+    } catch (e) {
+      console.warn('获取当前用户问卷失败，高匹配度匹配度将为 0:', e)
+    }
+
+    // 与今日推荐保持一致，同样排除当前用户自己
+    const currentUserId = authStore.userId
+    const filteredUsersData = usersData.filter((user) => {
+      const userId = user.userId || user.id || user.user_id
+      return userId !== currentUserId && String(userId) !== String(currentUserId)
+    })
+
+    const formatted = formatUsersData(filteredUsersData)
+
+    // 为每个候选人获取问卷并计算匹配度
+    const scoresMap = {}
+    await Promise.all(
+      formatted.map(async (user) => {
+        const otherId = user.id
+        try {
+          const otherQ = await getQuestionnaire(otherId)
+          const score = computeMatchScore(
+            selfQuestionnaire,
+            otherQ,
+            user
+          )
+          scoresMap[otherId] = score
+        } catch (e) {
+          console.warn('获取候选人问卷失败，userId:', otherId, e)
+          scoresMap[otherId] = 0
+        }
+      })
+    )
+
+    // 合并匹配度
+    const withScore = formatted.map((u) => ({
+      ...u,
+      matchScore: scoresMap[u.id] ?? u.matchScore ?? 0
+    }))
+
+    // 根据匹配度从高到低排序，取前 N 个
+    const sorted = withScore
+      .slice()
+      .sort((a, b) => (b.matchScore || 0) - (a.matchScore || 0))
+
+    highMatchUsers.value = sorted.slice(0, 10)
+
+    console.log('✅ 高匹配度推荐加载完成，数量:', highMatchUsers.value.length)
+    console.log('高匹配度推荐列表:', highMatchUsers.value)
+  } catch (error) {
+    console.error('❌ 加载高匹配度推荐失败:', error)
+    highMatchUsers.value = []
+  }
+}
+
+// 页面加载时获取匹配用户 & 高匹配度推荐
 onMounted(() => {
   loadMatchedUsers()
+  loadHighMatchUsers()
 })
 </script>
 

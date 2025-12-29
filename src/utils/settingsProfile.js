@@ -22,7 +22,10 @@ export function buildUpdatePayload(form) {
   const data = {
     nickname: form.nickname?.trim() || undefined,
     bio: form.bio?.trim() || undefined,
-    avatarUrl: form.avatar || undefined // 将 avatar 映射为 avatarUrl
+    avatarUrl: form.avatar || undefined, // 将 avatar 映射为 avatarUrl
+    // 基础资料字段：生日和地区（后端通常字段为 birthday / region）
+    birthday: form.birthday?.trim() || undefined,
+    region: form.location?.trim() || undefined
   }
   for (const k of Object.keys(data)) {
     const v = data[k]
