@@ -284,3 +284,55 @@ export function updateCurrentUser(userData) {
     return Promise.reject(new Error("解析用户信息失败: " + e.message));
   }
 }
+
+/**
+ * 获取用户列表
+ * @param {Number} offset 偏移量
+ * @param {Number} limit 限制数量
+ * @returns {Promise}
+ */
+export function getUserList(offset = 0, limit = 100) {
+  return request({
+    url: "/user/list",
+    method: "get",
+    params: {
+      offset,
+      limit,
+    },
+  });
+}
+
+/**
+ * 获取填写过问卷的用户列表（通过检查用户信息）
+ * @param {Number} offset 偏移量
+ * @param {Number} limit 限制数量
+ * @returns {Promise}
+ */
+export function getMatchedUsers(offset = 0, limit = 50) {
+  return request({
+    url: "/user/matched",
+    method: "get",
+    params: {
+      offset,
+      limit,
+      hasQuestionnaire: 1, // 只获取填写过问卷的用户（数据库字段为0/1）
+    },
+  });
+}
+
+/**
+ * 根据 user_questionnaire_completion 表查询填写过问卷的用户列表
+ * @param {Number} offset 偏移量
+ * @param {Number} limit 限制数量
+ * @returns {Promise}
+ */
+export function getUsersWithQuestionnaire(offset = 0, limit = 50) {
+  return request({
+    url: "/user/with-questionnaire",
+    method: "get",
+    params: {
+      offset,
+      limit,
+    },
+  });
+}

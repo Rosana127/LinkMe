@@ -1217,14 +1217,32 @@ export default {
       const priorityOrder = ['high', 'medium', 'low']
       const payload = {
         userId,
+        // user_hobby 表：兴趣爱好（数组）
+        interests: Array.isArray(this.formData.interests) ? this.formData.interests : [],
+        // user_personality 表：性格特质
+        socialEnergy: this.formData.socialEnergy || null,
+        decisionMaking: this.formData.decisionMaking || null,
+        lifeRhythm: this.formData.lifeRhythm || null,
+        communicationStyle: this.formData.communicationStyle || null,
+        // 匹配偏好
+        preferredSocialStyle: this.formData.preferredSocialStyle || null,
+        preferredLifestyle: this.formData.preferredLifestyle || null,
+        preferredInterests: this.formData.preferredInterests || null,
+        // 年龄要求
         ageMin,
         ageMax,
         ageUnlimited,
+        // 距离偏好
         distancePreference: dpMap[this.formData.distanceRequirement] || null,
+        // 关系模式
         relationshipModeId: rmMap[this.formData.preferredRelationshipMode] || null,
+        // 沟通期望
         communicationExpectationId: ceMap[this.formData.communicationExpectation] || null,
+        // 关系品质（数组）
         relationshipQualities: this.formData.relationshipQualities.map(c => rqNameMap[c]).filter(Boolean),
+        // 必须维度（数组）
         mustDimensions: mustCodes.map(c => dimIdMap[c]).filter(Boolean),
+        // 优先维度（数组）
         priorityDimensions: prioCodes.slice(0, 3).map((c, idx) => ({ dimensionId: dimIdMap[c], priority: priorityOrder[idx] })).filter(d => d.dimensionId)
       }
       if (includeAdditional) {
@@ -1351,6 +1369,16 @@ export default {
         }
 
         const questionnaireData = this.buildQuestionnairePayload(userId, false)
+        
+        // 打印自动保存的数据（开发环境）
+        if (import.meta.env.DEV) {
+          console.log('💾 自动保存数据:', {
+            userId: questionnaireData.userId,
+            interests: questionnaireData.interests,
+            socialEnergy: questionnaireData.socialEnergy,
+            decisionMaking: questionnaireData.decisionMaking
+          })
+        }
 
         // 先尝试使用PUT更新，如果失败（404），则使用POST创建
         try {
@@ -1434,6 +1462,21 @@ export default {
         
         // 准备提交的数据
         const questionnaireData = this.buildQuestionnairePayload(userId, true)
+        
+        // 打印完整数据，便于排查
+        console.log('📤 准备提交的问卷数据（完整）:', JSON.stringify(questionnaireData, null, 2))
+        console.log('📊 关键字段检查:', {
+          userId: questionnaireData.userId,
+          interests数量: Array.isArray(questionnaireData.interests) ? questionnaireData.interests.length : 0,
+          interests内容: questionnaireData.interests,
+          personality字段: {
+            socialEnergy: questionnaireData.socialEnergy,
+            decisionMaking: questionnaireData.decisionMaking,
+            lifeRhythm: questionnaireData.lifeRhythm,
+            communicationStyle: questionnaireData.communicationStyle
+          },
+          relationshipQualities数量: Array.isArray(questionnaireData.relationshipQualities) ? questionnaireData.relationshipQualities.length : 0
+        })
         
         // 调用API保存数据（最终提交时使用POST，确保创建或更新）
         // 先尝试PUT更新，如果失败则使用POST创建

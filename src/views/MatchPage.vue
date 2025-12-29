@@ -4,26 +4,41 @@
       <div class="bg-white rounded-xl p-8 shadow-sm mb-6">
         <h3 class="text-xl font-bold mb-6">今日推荐</h3>
         
+        <!-- 加载状态 -->
+        <div v-if="isLoading" class="text-center py-12">
+          <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600 mb-4"></div>
+          <p class="text-gray-600">正在加载用户信息...</p>
+        </div>
+        
+        <!-- 空状态 -->
+        <div v-else-if="matches.length === 0" class="text-center py-12">
+          <span class="iconify text-4xl text-gray-400 mb-4 block" data-icon="mdi:account-search" data-inline="false"></span>
+          <p class="text-gray-600">暂无填写过问卷的用户</p>
+          <p class="text-sm text-gray-500 mt-2">请稍后再试或检查网络连接</p>
+        </div>
+        
+        <!-- 用户卡片 -->
         <div 
+          v-else
           id="match-card" 
           class="match-card relative rounded-xl overflow-hidden shadow-lg h-96 mb-6"
           :class="cardClass"
         >
           <img 
-            :src="currentMatch.photo" 
-            :alt="currentMatch.name" 
+            :src="currentMatch?.photo || ''" 
+            :alt="currentMatch?.name || '用户'" 
             class="w-full h-full object-cover"
           >
           <div class="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 via-black/30 to-transparent p-5 text-white">
-            <h2 class="text-xl font-bold">{{ currentMatch.name }}, {{ currentMatch.age }}</h2>
-            <p class="text-sm">{{ currentMatch.location }} · {{ currentMatch.job }}</p>
+            <h2 class="text-xl font-bold">{{ currentMatch?.name || '未知' }}, {{ currentMatch?.age || 0 }}</h2>
+            <p class="text-sm">{{ currentMatch?.location || '' }} · {{ currentMatch?.job || '' }}</p>
             <div class="flex mt-1">
               <span class="iconify mr-1" data-icon="mdi:map-marker" data-inline="false"></span>
-              <span class="text-xs">{{ currentMatch.distance }}</span>
+              <span class="text-xs">{{ currentMatch?.distance || '' }}</span>
             </div>
             <div class="flex mt-3 space-x-2">
               <span 
-                v-for="tag in currentMatch.tags" 
+                v-for="tag in (currentMatch?.tags || [])" 
                 :key="tag"
                 class="bg-primary-500 text-xs rounded-full px-3 py-1"
               >
@@ -33,17 +48,17 @@
           </div>
         </div>
         
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+        <div v-if="!isLoading && matches.length > 0" class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
           <div>
             <h4 class="font-medium mb-4">个人简介</h4>
-            <p class="text-gray-700">{{ currentMatch.bio }}</p>
+            <p class="text-gray-700">{{ currentMatch?.bio || '暂无简介' }}</p>
           </div>
           
           <div>
             <h4 class="font-medium mb-4">兴趣爱好</h4>
             <div class="flex flex-wrap gap-2">
               <span 
-                v-for="interest in currentMatch.interests" 
+                v-for="interest in (currentMatch?.interests || [])" 
                 :key="interest"
                 class="bg-gray-100 rounded-full px-3 py-1 text-sm"
               >
@@ -53,7 +68,7 @@
           </div>
         </div>
         
-        <div class="space-y-4 mb-6">
+        <div v-if="!isLoading && matches.length > 0" class="space-y-4 mb-6">
           <!-- 上一页、下一页按钮行 -->
           <div class="flex justify-between items-center gap-4">
             <button 
@@ -94,12 +109,13 @@
               <span class="whitespace-nowrap">发起聊天</span>
             </button>
             <button 
-              class="w-14 h-14 rounded-lg bg-red-500 text-white hover:bg-red-600 transition-all flex items-center justify-center shadow-md hover:shadow-lg active:scale-95 flex-shrink-0"
+              class="px-4 py-3 rounded-lg bg-red-500 text-white hover:bg-red-600 transition-all flex items-center justify-center gap-2 shadow-md hover:shadow-lg active:scale-95 flex-shrink-0"
               @click="likeUser"
               :class="isLiked ? 'bg-red-600 ring-2 ring-red-300' : ''"
               title="喜欢"
             >
-              <span class="iconify text-2xl" data-icon="mdi:heart" data-inline="false"></span>
+              <span class="iconify text-xl" data-icon="mdi:heart" data-inline="false"></span>
+              <span class="whitespace-nowrap text-sm font-medium">喜欢</span>
             </button>
           </div>
         </div>
@@ -188,48 +204,18 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
+import { getUsersWithQuestionnaire } from '@/api/user'
+import { useAuthStore } from '@/stores/auth'
 
 const router = useRouter()
+const authStore = useAuthStore()
 const cardClass = ref('swipe-pending')
+const isLoading = ref(false)
 
 // 匹配列表数据
-const matches = ref([
-  {
-    name: '张明宇',
-    age: 26,
-    location: '北京',
-    job: '设计师',
-    distance: '3公里内',
-    photo: 'https://modao.cc/ai/uploads/ai_pics/32/327751/aigp_1758963754.jpeg',
-    bio: '热爱摄影和旅行，希望能找到一个志同道合的伴侣一起探索世界的美好。平时喜欢阅读和品尝各种美食，偶尔也会自己下厨。',
-    tags: ['摄影爱好者', '旅行达人'],
-    interests: ['摄影', '旅行', '阅读', '美食', '烹饪', '电影']
-  },
-  {
-    name: '李小雨',
-    age: 24,
-    location: '上海',
-    job: '产品经理',
-    distance: '5公里内',
-    photo: 'https://modao.cc/ai/uploads/ai_pics/32/327751/aigp_1758963754.jpeg',
-    bio: '喜欢音乐和电影，周末喜欢去咖啡厅看书。希望能找到一个有共同话题的人。',
-    tags: ['音乐爱好者', '电影迷'],
-    interests: ['音乐', '电影', '阅读', '咖啡', '旅行']
-  },
-  {
-    name: '王强',
-    age: 28,
-    location: '深圳',
-    job: '软件工程师',
-    distance: '8公里内',
-    photo: 'https://modao.cc/ai/uploads/ai_pics/32/327751/aigp_1758963754.jpeg',
-    bio: '热爱编程和技术，喜欢运动健身。希望找到一个能一起运动、一起成长的伴侣。',
-    tags: ['技术达人', '健身爱好者'],
-    interests: ['编程', '健身', '跑步', '篮球', '阅读']
-  }
-])
+const matches = ref([])
 
 // 当前匹配索引
 const currentIndex = ref(0)
@@ -238,7 +224,22 @@ const currentIndex = ref(0)
 const likedUsers = ref(new Set())
 
 // 计算当前匹配对象
-const currentMatch = computed(() => matches.value[currentIndex.value] || matches.value[0])
+const currentMatch = computed(() => {
+  if (!matches.value || matches.value.length === 0) {
+    return {
+      name: '暂无数据',
+      age: 0,
+      location: '',
+      job: '',
+      distance: '',
+      photo: '',
+      bio: '',
+      tags: [],
+      interests: []
+    }
+  }
+  return matches.value[currentIndex.value] || matches.value[0]
+})
 
 // 检查当前用户是否已喜欢
 const isLiked = computed(() => {
@@ -369,6 +370,103 @@ const selectMatchUser = (user) => {
 const goToQuestionnaire = () => {
   router.push('/questionnaire')
 }
+
+// 加载填写过问卷的用户列表（基于 user_questionnaire_completion 表）
+const loadMatchedUsers = async () => {
+  if (isLoading.value) return
+  
+  isLoading.value = true
+  matches.value = [] // 清空之前的数据
+  
+  try {
+    console.log('开始加载填写过问卷的用户（基于 user_questionnaire_completion 表）...')
+    
+    // 使用基于 user_questionnaire_completion 表的API
+    const response = await getUsersWithQuestionnaire(0, 50)
+    console.log('API原始响应:', response)
+    
+    // 处理响应数据：request.js 已经处理了 code: 0 的情况，返回的是 data 数组
+    // 但为了兼容性，也支持直接返回数组或包含 data/list 字段的对象
+    let usersData = []
+    if (Array.isArray(response)) {
+      usersData = response
+    } else if (response && typeof response === 'object') {
+      usersData = response.data || response.list || []
+    }
+    
+    console.log('解析后的用户数据:', usersData)
+    console.log('用户数量:', usersData.length)
+    
+    if (usersData.length > 0) {
+      matches.value = formatUsersData(usersData)
+      console.log('✅ 加载用户成功，数量:', matches.value.length)
+      console.log('格式化后的用户列表:', matches.value)
+    } else {
+      console.log('暂无填写过问卷的用户')
+      matches.value = [] // 确保为空数组
+    }
+    
+  } catch (error) {
+    console.error('❌ 加载用户失败:', error)
+    console.error('错误详情:', {
+      message: error.message,
+      status: error.status,
+      response: error.response
+    })
+    matches.value = [] // 出错时设置为空数组
+  } finally {
+    isLoading.value = false
+    console.log('加载完成，最终用户数量:', matches.value.length)
+  }
+}
+
+// 格式化用户数据
+const formatUsersData = (usersData) => {
+  return usersData.map((user, index) => ({
+    id: user.userId || user.id || index,
+    // 名称：优先使用 nickname，然后是 name、username
+    name: user.nickname || user.name || user.username || '未知用户',
+    // 年龄：如果有 age 字段直接使用，否则根据 birthday 计算
+    age: user.age || calculateAge(user.birthday) || 25,
+    // 位置：优先使用 region，然后是 location、city
+    location: user.region || user.location || user.city || '未知',
+    // 工作：job 或 profession
+    job: user.job || user.profession || '未知',
+    // 距离：如果有就使用，否则使用默认值
+    distance: user.distance || '未知距离',
+    // 头像：优先使用 avatarUrl，然后是 avatar、photo
+    photo: user.avatarUrl || user.avatar || user.photo || 'https://modao.cc/ai/uploads/ai_pics/32/327751/aigp_1758963754.jpeg',
+    // 简介：bio、introduction、description
+    bio: user.bio || user.introduction || user.description || '这个人很懒，什么都没有留下。',
+    // 标签和兴趣
+    tags: user.tags || [],
+    interests: user.interests || [],
+    // 保留原始数据中的其他字段（如 gender、email、phone 等）
+    gender: user.gender,
+    email: user.email,
+    phone: user.phone,
+    username: user.username,
+    createdAt: user.createdAt
+  }))
+}
+
+// 根据生日计算年龄
+const calculateAge = (birthday) => {
+  if (!birthday) return null
+  const birthDate = new Date(birthday)
+  const today = new Date()
+  let age = today.getFullYear() - birthDate.getFullYear()
+  const monthDiff = today.getMonth() - birthDate.getMonth()
+  if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+    age--
+  }
+  return age
+}
+
+// 页面加载时获取匹配用户
+onMounted(() => {
+  loadMatchedUsers()
+})
 </script>
 
 <style scoped>
