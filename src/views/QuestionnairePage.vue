@@ -1624,12 +1624,7 @@ export default {
             const map = { 1: 'instant_reply', 2: 'casual_reply', 3: 'timely_communication' }
             this.formData.communicationExpectation = map[id] || ''
           }
-<<<<<<< HEAD
-
-          // 关系品质 / 必须维度 / 优先维度：直接使用编码数组
-          if (Array.isArray(existingData.relationshipQualities)) {
-=======
-          if (existingData.socialEnergy) {
+if (existingData.socialEnergy) {
             this.formData.socialEnergy = existingData.socialEnergy
           }
           if (existingData.decisionMaking) {
@@ -1662,7 +1657,6 @@ export default {
               '有趣合拍': 'interesting_compatible',
               '三观一致': 'shared_values'
             }
->>>>>>> 17cba10 (草稿箱)
             this.formData.relationshipQualities = existingData.relationshipQualities
           }
           if (Array.isArray(existingData.mustHaveQualities)) {

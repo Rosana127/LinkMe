@@ -17,8 +17,19 @@ export function getRecommendations(page = 1, size = 20) {
   })
 }
 
+/**
+ * 获取匹配推荐列表（别名函数，与 getRecommendations 功能相同）
+ * @param {number} page 页码，从 1 开始
+ * @param {number} size 每页数量
+ * @returns {Promise}
+ */
+export function getMatchRecommendations(page = 1, size = 20) {
+  return getRecommendations(page, size)
+}
+
 const matchApi = {
-  getRecommendations
+  getRecommendations,
+  getMatchRecommendations
 }
 
 export default matchApi

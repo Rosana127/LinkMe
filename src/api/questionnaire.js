@@ -40,6 +40,20 @@ export function updateQuestionnaire(questionnaireData) {
 }
 
 /**
+ * 获取已填写问卷的用户列表
+ * @param {number} page 页码
+ * @param {number} size 每页数量
+ * @returns {Promise}
+ */
+export function getCompletedUsers(page = 1, size = 50) {
+  return request({
+    url: "/questionnaire/completed-users",
+    method: "get",
+    params: { page, size },
+  });
+}
+
+/**
  * 删除问卷数据
  * @returns {Promise}
  */
@@ -54,9 +68,9 @@ const questionnaireApi = {
   submitQuestionnaire,
   getQuestionnaire,
   updateQuestionnaire,
+  getCompletedUsers,
   deleteQuestionnaire,
 };
 
 export default questionnaireApi;
-
 

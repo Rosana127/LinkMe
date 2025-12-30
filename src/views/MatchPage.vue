@@ -206,8 +206,8 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { getUsersWithQuestionnaire } from '@/api/user'
-import { getQuestionnaire } from '@/api/questionnaire'
+import { getQuestionnaire, getCompletedUsers } from '@/api/questionnaire'
+import { getMatchRecommendations } from '@/api/match'
 import { useAuthStore } from '@/stores/auth'
 
 const router = useRouter()
@@ -350,7 +350,17 @@ const goToQuestionnaire = () => {
   router.push('/questionnaire')
 }
 
-// 加载填写过问卷的用户列表（基于 user_questionnaire_completion 表）
+// 统一解析后端响应为数组
+const parseListResponse = (response) => {
+  if (Array.isArray(response)) return response
+  if (response && typeof response === 'object') {
+    // 兼容 { code, data } 或直接返回 data/list
+    return response.data || response.list || []
+  }
+  return []
+}
+
+// 加载匹配推荐列表（使用后端计算匹配度 + 过滤已完成问卷的用户）
 const loadMatchedUsers = async () => {
   if (isLoading.value) return
   
@@ -358,56 +368,60 @@ const loadMatchedUsers = async () => {
   matches.value = [] // 清空之前的数据
   
   try {
-    console.log('开始加载填写过问卷的用户（基于 user_questionnaire_completion 表）...')
+    console.log('开始加载匹配推荐列表（后端计算匹配度 + 过滤已完成问卷）...')
+    const [recResp, completedResp] = await Promise.all([
+      getMatchRecommendations(1, 50),
+      getCompletedUsers(1, 200)
+    ])
+    const recommendations = parseListResponse(recResp)
+    const completedList = parseListResponse(completedResp)
+    const completedIds = new Set(
+      completedList
+        .map(u => u.userId || u.id)
+        .filter(id => id != null)
+    )
+    console.log('推荐用户数量:', recommendations.length, '已完成问卷数量:', completedIds.size)
     
-    // 使用基于 user_questionnaire_completion 表的API
-    const response = await getUsersWithQuestionnaire(0, 50)
-    console.log('API原始响应:', response)
+    // 仅保留已完成问卷的用户
+    const filtered = recommendations.filter(rec => completedIds.has(rec.userId))
     
-    // 处理响应数据：request.js 已经处理了 code: 0 的情况，返回的是 data 数组
-    // 但为了兼容性，也支持直接返回数组或包含 data/list 字段的对象
-    let usersData = []
-    if (Array.isArray(response)) {
-      usersData = response
-    } else if (response && typeof response === 'object') {
-      usersData = response.data || response.list || []
-    }
-    
-    console.log('解析后的用户数据:', usersData)
-    console.log('用户数量:', usersData.length)
-    
-    if (usersData.length > 0) {
-      // 获取当前用户ID
-      const currentUserId = authStore.userId
-      console.log('当前用户ID:', currentUserId)
+    if (filtered.length > 0) {
+      // 格式化推荐数据为前端需要的格式
+      matches.value = filtered.map(rec => ({
+        id: rec.userId,
+        name: rec.nickname || '未知用户',
+        age: calculateAge(rec.birthday) || 25,
+        location: rec.region || '未知',
+        job: '未知', // 后端暂未提供此字段
+        distance: '未知距离', // 后端暂未提供此字段
+        photo: rec.avatarUrl || 'https://modao.cc/ai/uploads/ai_pics/32/327751/aigp_1758963754.jpeg',
+        bio: rec.bio || '这个人很懒，什么都没有留下。',
+        tags: [], // 后端暂未提供此字段
+        interests: Array.isArray(rec.interests) ? convertInterestsToLabels(rec.interests) : [],
+        matchScore: rec.matchScore || 0,
+        gender: rec.gender,
+        email: rec.email,
+        phone: rec.phone,
+        username: rec.username,
+        createdAt: rec.createdAt
+      }))
       
-      // 过滤掉当前用户自己的信息
-      const filteredUsersData = usersData.filter(user => {
-        const userId = user.userId || user.id || user.user_id
-        const isNotCurrentUser = userId !== currentUserId && String(userId) !== String(currentUserId)
-        if (!isNotCurrentUser) {
-          console.log('过滤掉当前用户自己的信息，用户ID:', userId)
-        }
-        return isNotCurrentUser
-      })
+      console.log('✅ 加载匹配推荐成功（已过滤），数量:', matches.value.length)
       
-      console.log('过滤后的用户数量:', filteredUsersData.length)
-      
-      // 先格式化用户基本信息
-      matches.value = formatUsersData(filteredUsersData)
-      console.log('✅ 加载用户成功，数量:', matches.value.length)
-      
-      // 为每个用户获取问卷信息（包括兴趣爱好）
-      await loadUserQuestionnaires()
+      // 如果推荐中没有兴趣（老后端），再回退逐个拉问卷补充兴趣
+      const hasAnyInterest = matches.value.some(m => Array.isArray(m.interests) && m.interests.length > 0)
+      if (!hasAnyInterest) {
+        await loadUserQuestionnaires()
+      }
       
       console.log('格式化后的用户列表（包含问卷信息）:', matches.value)
     } else {
-      console.log('暂无填写过问卷的用户')
+      console.log('暂无匹配推荐用户')
       matches.value = [] // 确保为空数组
     }
     
   } catch (error) {
-    console.error('❌ 加载用户失败:', error)
+    console.error('❌ 加载匹配推荐失败:', error)
     console.error('错误详情:', {
       message: error.message,
       status: error.status,
@@ -483,39 +497,6 @@ const INTEREST_LABELS = {
   city_walk: 'city walk'
 }
 
-// 格式化用户数据
-const formatUsersData = (usersData) => {
-  return usersData.map((user, index) => ({
-    id: user.userId || user.id || index,
-    // 名称：优先使用 nickname，然后是 name、username
-    name: user.nickname || user.name || user.username || '未知用户',
-    // 年龄：如果有 age 字段直接使用，否则根据 birthday 计算
-    age: user.age || calculateAge(user.birthday) || 25,
-    // 位置：优先使用 region，然后是 location、city
-    location: user.region || user.location || user.city || '未知',
-    // 工作：job 或 profession
-    job: user.job || user.profession || '未知',
-    // 距离：如果有就使用，否则使用默认值
-    distance: user.distance || '未知距离',
-    // 头像：优先使用 avatarUrl，然后是 avatar、photo
-    photo: user.avatarUrl || user.avatar || user.photo || 'https://modao.cc/ai/uploads/ai_pics/32/327751/aigp_1758963754.jpeg',
-    // 简介：bio、introduction、description
-    bio: user.bio || user.introduction || user.description || '这个人很懒，什么都没有留下。',
-    // 标签和兴趣
-    tags: user.tags || [],
-    // 兴趣初始为空，后续通过 loadUserQuestionnaires 从问卷API加载
-    interests: [],
-    // 匹配度（如果后端有返回则使用，否则默认 0，后续可以在后端补充）
-    matchScore: user.matchScore ?? user.match_score ?? user.score ?? 0,
-    // 保留原始数据中的其他字段（如 gender、email、phone 等）
-    gender: user.gender,
-    email: user.email,
-    phone: user.phone,
-    username: user.username,
-    createdAt: user.createdAt
-  }))
-}
-
 // 根据生日计算年龄
 const calculateAge = (birthday) => {
   if (!birthday) return null
@@ -586,211 +567,40 @@ const loadUserQuestionnaires = async () => {
   console.log('✅ 所有用户的问卷信息加载完成')
 }
 
-// 计算两份问卷之间的匹配度（0-100）
-const computeMatchScore = (selfQ, otherQ, otherProfile) => {
-  if (!selfQ || !otherQ) return 0
-
-  let score = 80 // 基础分
-
-  // 1. 年龄偏好：看对方年龄是否在自己的 ageRequirement 范围内
-  const ageReq = selfQ.ageRequirement || {}
-  const otherAge = otherProfile?.age || null
-  if (otherAge != null && ageReq.unlimited === false) {
-    if (
-      typeof ageReq.minAge === 'number' &&
-      typeof ageReq.maxAge === 'number' &&
-      (otherAge < ageReq.minAge || otherAge > ageReq.maxAge)
-    ) {
-      score -= 10
-    }
-  }
-
-  // 2. 距离偏好：如果自己要求同城优先，但城市不同，减分
-  if (selfQ.distanceRequirement === 'same_city_priority') {
-    const selfCity = selfQ.city || selfQ.location || ''
-    const otherCity = otherProfile?.location || otherProfile?.city || ''
-    if (selfCity && otherCity && selfCity !== otherCity) {
-      score -= 5
-    }
-  }
-
-  // 3. 爱好重合：兴趣交集越多，加分（每项 +1，上限 +6）
-  const selfInterests = Array.isArray(selfQ.interests) ? selfQ.interests : []
-  const otherInterests = Array.isArray(otherQ.interests)
-    ? otherQ.interests
-    : []
-  if (selfInterests.length && otherInterests.length) {
-    const set = new Set(selfInterests)
-    let overlap = 0
-    for (const it of otherInterests) {
-      if (set.has(it)) overlap++
-    }
-    score += Math.min(overlap, 6) // 最多加 6 分
-  }
-
-  // 4. 关系品质交集：每项 +2，最多 +6
-  const selfQualities = Array.isArray(selfQ.relationshipQualities)
-    ? selfQ.relationshipQualities
-    : []
-  const otherQualities = Array.isArray(otherQ.relationshipQualities)
-    ? otherQ.relationshipQualities
-    : []
-  if (selfQualities.length && otherQualities.length) {
-    const set = new Set(selfQualities)
-    let overlap = 0
-    for (const q of otherQualities) {
-      if (set.has(q)) overlap++
-    }
-    score += Math.min(overlap * 2, 6)
-  }
-
-  // 5. 关系模式一致：+5
-  if (
-    selfQ.preferredRelationshipMode &&
-    selfQ.preferredRelationshipMode === otherQ.preferredRelationshipMode
-  ) {
-    score += 5
-  }
-
-  // 6. 沟通期待一致：+3
-  if (
-    selfQ.communicationExpectation &&
-    selfQ.communicationExpectation === otherQ.communicationExpectation
-  ) {
-    score += 3
-  }
-
-  // 7. 性格特质匹配：每个维度相同 +1（socialEnergy / decisionMaking / lifeRhythm / communicationStyle）
-  const personalityKeys = [
-    'socialEnergy',
-    'decisionMaking',
-    'lifeRhythm',
-    'communicationStyle'
-  ]
-  for (const key of personalityKeys) {
-    if (selfQ[key] && otherQ[key] && selfQ[key] === otherQ[key]) {
-      score += 1
-    }
-  }
-
-  // 8. must 维度未满足：每项 -10（简化版）
-  const musts = Array.isArray(selfQ.mustHaveQualities)
-    ? selfQ.mustHaveQualities
-    : []
-  for (const m of musts) {
-    switch (m) {
-      case 'age_range':
-        if (otherAge != null && ageReq.unlimited === false) {
-          if (
-            typeof ageReq.minAge === 'number' &&
-            typeof ageReq.maxAge === 'number' &&
-            (otherAge < ageReq.minAge || otherAge > ageReq.maxAge)
-          ) {
-            score -= 10
-          }
-        }
-        break
-      case 'relationship_mode':
-        if (
-          selfQ.preferredRelationshipMode &&
-          selfQ.preferredRelationshipMode !== otherQ.preferredRelationshipMode
-        ) {
-          score -= 10
-        }
-        break
-      case 'communication_style':
-        if (
-          selfQ.communicationStyle &&
-          selfQ.communicationStyle !== otherQ.communicationStyle
-        ) {
-          score -= 10
-        }
-        break
-      case 'interest_overlap':
-        if (!selfInterests.length || !otherInterests.length) {
-          score -= 10
-        }
-        break
-      default:
-        break
-    }
-  }
-
-  // 限制在 0-100 之间
-  if (score > 100) score = 100
-  if (score < 0) score = 0
-  return Math.round(score)
-}
-
-// 加载高匹配度推荐列表（people 侧边栏）
+// 加载高匹配度推荐列表（同样过滤为已完成问卷的用户）
 const loadHighMatchUsers = async () => {
   try {
-    console.log('开始加载高匹配度推荐列表（基于 /user/with-questionnaire）...')
-
-    const response = await getUsersWithQuestionnaire(0, 50)
-    console.log('高匹配度推荐原始响应:', response)
-
-    let usersData = []
-    if (Array.isArray(response)) {
-      usersData = response
-    } else if (response && typeof response === 'object') {
-      usersData = response.data || response.list || []
-    }
-
-    console.log('解析后的用户数据（高匹配度）:', usersData)
-
-    // 获取当前用户的问卷（self）
-    let selfQuestionnaire = null
-    try {
-      selfQuestionnaire = await getQuestionnaire()
-      console.log('当前用户问卷数据:', selfQuestionnaire)
-    } catch (e) {
-      console.warn('获取当前用户问卷失败，高匹配度匹配度将为 0:', e)
-    }
-
-    // 与今日推荐保持一致，同样排除当前用户自己
-    const currentUserId = authStore.userId
-    const filteredUsersData = usersData.filter((user) => {
-      const userId = user.userId || user.id || user.user_id
-      return userId !== currentUserId && String(userId) !== String(currentUserId)
-    })
-
-    const formatted = formatUsersData(filteredUsersData)
-
-    // 为每个候选人获取问卷并计算匹配度
-    const scoresMap = {}
-    await Promise.all(
-      formatted.map(async (user) => {
-        const otherId = user.id
-        try {
-          const otherQ = await getQuestionnaire(otherId)
-          const score = computeMatchScore(
-            selfQuestionnaire,
-            otherQ,
-            user
-          )
-          scoresMap[otherId] = score
-        } catch (e) {
-          console.warn('获取候选人问卷失败，userId:', otherId, e)
-          scoresMap[otherId] = 0
-        }
-      })
+    console.log('开始加载高匹配度推荐列表（过滤已完成问卷）...')
+    const [recResp, completedResp] = await Promise.all([
+      getMatchRecommendations(1, 50),
+      getCompletedUsers(1, 200)
+    ])
+    const recommendations = parseListResponse(recResp)
+    const completedIds = new Set(
+      parseListResponse(completedResp)
+        .map(u => u.userId || u.id)
+        .filter(id => id != null)
     )
+    const filtered = recommendations.filter(rec => completedIds.has(rec.userId))
 
-    // 合并匹配度
-    const withScore = formatted.map((u) => ({
-      ...u,
-      matchScore: scoresMap[u.id] ?? u.matchScore ?? 0
+    // 格式化为前端需要的格式
+    const formatted = filtered.map(rec => ({
+      id: rec.userId,
+      name: rec.nickname || '未知用户',
+      age: calculateAge(rec.birthday) || 25,
+      photo: rec.avatarUrl || 'https://modao.cc/ai/uploads/ai_pics/32/327751/aigp_1758963754.jpeg',
+      matchScore: rec.matchScore || 0,
+      isOnline: Math.random() > 0.5 // 随机在线状态，后续可以从后端获取
     }))
 
-    // 根据匹配度从高到低排序，取前 N 个
-    const sorted = withScore
+    // 根据匹配度从高到低排序，取前10个
+    const sorted = formatted
       .slice()
       .sort((a, b) => (b.matchScore || 0) - (a.matchScore || 0))
 
     highMatchUsers.value = sorted.slice(0, 10)
 
-    console.log('✅ 高匹配度推荐加载完成，数量:', highMatchUsers.value.length)
+    console.log('✅ 高匹配度推荐加载完成（已过滤），数量:', highMatchUsers.value.length)
     console.log('高匹配度推荐列表:', highMatchUsers.value)
   } catch (error) {
     console.error('❌ 加载高匹配度推荐失败:', error)
