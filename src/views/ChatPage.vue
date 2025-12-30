@@ -169,14 +169,15 @@
               v-for="n in filteredNotifications"
               :key="n.notificationId"
               class="flex flex-col py-3 px-3 rounded-lg hover:bg-gray-800 cursor-pointer transition-colors notification-item"
-              :class="{ unread: !n.isRead }"
+              :class="{ unread: !(n.isRead || n.read) }"
+              @click="handleNotificationClick(n)"
             >
               <div class="flex items-center mb-1">
                 <span class="notification-title font-bold text-white mr-2">{{
                   n.title
                 }}</span>
                 <span
-                  v-if="!n.isRead"
+                  v-if="!(n.isRead || n.read)"
                   class="w-2 h-2 bg-purple-500 rounded-full inline-block"
                 ></span>
               </div>
@@ -188,14 +189,14 @@
               </div>
               <div class="flex gap-2 mt-1">
                 <button
-                  v-if="!n.isRead"
-                  @click="markAsRead(n.notificationId)"
+                  v-if="!(n.isRead || n.read)"
+                  @click.stop="markAsRead(n.notificationId)"
                   class="px-2 py-1 text-xs bg-purple-600 text-white rounded"
                 >
                   标记为已读
                 </button>
                 <button
-                  @click="deleteNotification(n.notificationId)"
+                  @click.stop="deleteNotification(n.notificationId)"
                   class="px-2 py-1 text-xs bg-gray-700 text-white rounded"
                 >
                   删除
@@ -491,7 +492,7 @@
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted, nextTick, watch } from "vue";
-import { useRoute } from "vue-router";
+import { useRoute, useRouter } from "vue-router";
 import { useAuthStore } from "@/stores/auth";
 import * as chatApi from "@/api/chat";
 import * as userApi from "@/api/user";
@@ -518,6 +519,7 @@ if (import.meta.hot) {
 }
 
 const route = useRoute();
+const router = useRouter();
 const authStore = useAuthStore();
 const searchQuery = ref("");
 const selectedChatId = ref(null);
@@ -613,6 +615,21 @@ async function loadNotifications() {
     const res = await chatApi.getNotifications();
     console.log("通知API返回", res);
     notifications.value = Array.isArray(res) ? res : res?.data || [];
+    
+    // 调试：打印每个通知的字段
+    console.log("通知数据结构:");
+    notifications.value.forEach((n, index) => {
+      console.log(`通知${index}:`, {
+        notificationId: n.notificationId,
+        title: n.title,
+        content: n.content,
+        isRead: n.isRead,
+        read: n.read,
+        type: n.type,
+        actorId: n.actorId,
+        createdAt: n.createdAt
+      });
+    });
   } catch (e) {
     notifications.value = [];
     console.error("加载通知失败", e);
@@ -621,7 +638,7 @@ async function loadNotifications() {
 
 // 拉取未读通知数量
 const unreadNotificationsCount = computed(
-  () => notifications.value.filter((n) => !n.isRead).length
+  () => notifications.value.filter((n) => !(n.isRead || n.read)).length
 );
 
 // 标记单条通知为已读
@@ -651,6 +668,46 @@ async function deleteNotification(notificationId) {
     await loadNotifications();
   } catch (e) {
     console.error("删除通知失败", e);
+  }
+}
+
+// 处理通知点击事件
+function handleNotificationClick(notification) {
+  console.log('🔔 点击通知被触发:', notification);
+  
+  // 如果是喜欢通知，跳转到发送者的用户主页
+  if (notification.type === 'LIKE' && notification.actorId) {
+    console.log('喜欢通知，发送者ID:', notification.actorId);
+    
+    // 直接跳转到用户主页
+    router.push({ name: 'user-detail', params: { id: notification.actorId } });
+  } else {
+    console.log('其他类型通知:', notification.type);
+  }
+}
+
+// 检查当前用户是否已经喜欢过指定用户
+async function checkIfUserLiked(targetUserId) {
+  try {
+    // 调用后端API检查喜欢状态
+    const response = await fetch('/api/likes/status?targetUserId=' + targetUserId, {
+      method: 'GET',
+      headers: {
+        'Authorization': 'Bearer ' + localStorage.getItem('token'),
+        'Content-Type': 'application/json'
+      }
+    });
+    
+    if (response.ok) {
+      const data = await response.json();
+      return data?.data?.isLiked || false;
+    } else {
+      console.error('检查喜欢状态API调用失败:', response.status);
+      return false;
+    }
+  } catch (error) {
+    console.error('检查喜欢状态网络错误:', error);
+    return false;
   }
 }
 

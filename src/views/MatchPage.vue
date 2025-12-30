@@ -209,6 +209,7 @@ import { useRouter } from 'vue-router'
 import { getUsersWithQuestionnaire } from '@/api/user'
 import { getQuestionnaire, getPublicQuestionnaire } from '@/api/questionnaire'
 import { getMatchRecommendations } from '@/api/match'
+import { sendLikeNotification, cancelLikeNotification } from '@/api/likes'
 import { useAuthStore } from '@/stores/auth'
 
 const router = useRouter()
@@ -273,26 +274,52 @@ const nextMatch = () => {
   }
 }
 
-// 喜欢用户
-const likeUser = () => {
+// 喜欢用户（发送通知，不跳转聊天）
+const likeUser = async () => {
   const userId = currentMatch.value?.id || currentIndex.value
-  if (likedUsers.value.has(userId)) {
-    // 取消喜欢
-    likedUsers.value.delete(userId)
-    console.log('取消喜欢用户:', currentMatch.value.name)
-  } else {
-    // 添加喜欢
-    likedUsers.value.add(userId)
-    console.log('喜欢用户:', currentMatch.value.name)
+  if (!userId) {
+    console.warn('喜欢用户失败：当前用户缺少 id', currentMatch.value)
+    return
+  }
+  
+  const isCurrentlyLiked = likedUsers.value.has(userId)
+  console.log('喜欢操作开始:', { userId, isCurrentlyLiked })
+  
+  try {
+    if (isCurrentlyLiked) {
+      // 取消喜欢
+      console.log('正在取消喜欢:', userId)
+      await cancelLikeNotification(userId)
+      likedUsers.value.delete(userId)
+      console.log('✅ 取消喜欢用户:', currentMatch.value.name)
+    } else {
+      // 添加喜欢
+      console.log('正在发送喜欢:', userId)
+      await sendLikeNotification(userId)
+      likedUsers.value.add(userId)
+      console.log('✅ 喜欢用户:', currentMatch.value.name)
+    }
+  } catch (error) {
+    console.error('❌ 喜欢操作失败:', error)
     
-    // 跳转到聊天页面，并标记为来自匹配列表
-    const targetUserId = currentMatch.value?.id
-    if (targetUserId) {
-      router.push({
-        name: 'chat',
-        params: { userId: targetUserId },
-        query: { fromMatch: 'true' }
-      })
+    // 根据错误类型给出不同的处理
+    const errorMessage = error?.message || error?.data?.message || String(error)
+    
+    if (errorMessage.includes('已经发送过喜欢通知') || errorMessage.includes('已经喜欢过')) {
+      // 如果是重复喜欢的错误，直接更新本地状态为已喜欢
+      if (!isCurrentlyLiked) {
+        likedUsers.value.add(userId)
+        console.log('🔄 同步本地状态为已喜欢:', currentMatch.value.name)
+      }
+    } else if (errorMessage.includes('取消失败') || errorMessage.includes('没有发送过喜欢')) {
+      // 如果是取消失败的错误，直接更新本地状态为未喜欢
+      if (isCurrentlyLiked) {
+        likedUsers.value.delete(userId)
+        console.log('🔄 同步本地状态为未喜欢:', currentMatch.value.name)
+      }
+    } else {
+      // 其他错误，不改变本地状态
+      console.log('⚠️ 其他错误，保持本地状态不变')
     }
   }
 }
