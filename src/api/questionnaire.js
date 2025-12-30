@@ -27,6 +27,18 @@ export function getQuestionnaire(userId = null) {
 }
 
 /**
+ * 获取指定用户的公开问卷信息（仅包含兴趣爱好等可公开信息）
+ * @param {Number} userId 用户ID
+ * @returns {Promise}
+ */
+export function getPublicQuestionnaire(userId) {
+  return request({
+    url: `/questionnaire/${userId}/public`,
+    method: "get",
+  });
+}
+
+/**
  * 更新问卷数据（用于自动保存和部分更新）
  * @param {Object} questionnaireData 问卷数据
  * @returns {Promise}
@@ -53,6 +65,7 @@ export function deleteQuestionnaire() {
 const questionnaireApi = {
   submitQuestionnaire,
   getQuestionnaire,
+  getPublicQuestionnaire,
   updateQuestionnaire,
   deleteQuestionnaire,
 };

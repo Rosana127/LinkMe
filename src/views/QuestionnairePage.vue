@@ -1624,11 +1624,6 @@ export default {
             const map = { 1: 'instant_reply', 2: 'casual_reply', 3: 'timely_communication' }
             this.formData.communicationExpectation = map[id] || ''
           }
-<<<<<<< HEAD
-
-          // 关系品质 / 必须维度 / 优先维度：直接使用编码数组
-          if (Array.isArray(existingData.relationshipQualities)) {
-=======
           if (existingData.socialEnergy) {
             this.formData.socialEnergy = existingData.socialEnergy
           }
@@ -1654,16 +1649,22 @@ export default {
             this.formData.interests = existingData.interests
           }
           if (existingData.relationshipQualities && Array.isArray(existingData.relationshipQualities)) {
-            const nameToCode = {
-              '真诚坦率': 'sincere_frank',
-              '相互理解': 'mutual_understanding',
-              '彼此信任': 'mutual_trust',
-              '包容尊重': 'tolerant_respectful',
-              '有趣合拍': 'interesting_compatible',
-              '三观一致': 'shared_values'
+            const first = existingData.relationshipQualities[0]
+            if (typeof first === 'string') {
+              this.formData.relationshipQualities = existingData.relationshipQualities
+            } else {
+              const nameToCode = {
+                '真诚坦率': 'sincere_frank',
+                '相互理解': 'mutual_understanding',
+                '彼此信任': 'mutual_trust',
+                '包容尊重': 'tolerant_respectful',
+                '有趣合拍': 'interesting_compatible',
+                '三观一致': 'shared_values'
+              }
+              this.formData.relationshipQualities = existingData.relationshipQualities
+                .map(q => nameToCode[q?.qualityName] || null)
+                .filter(Boolean)
             }
->>>>>>> 17cba10 (草稿箱)
-            this.formData.relationshipQualities = existingData.relationshipQualities
           }
           if (Array.isArray(existingData.mustHaveQualities)) {
             this.formData.mustHaveQualities = existingData.mustHaveQualities
