@@ -587,15 +587,43 @@ async function loadUserStats() {
 async function loadFollowers() {
   try {
     const userId = authStore.userId
-    if (!userId) return
+    if (!userId) {
+      console.warn('无法加载粉丝列表：用户未登录')
+      return
+    }
     
     userListLoading.value = true
     const offset = 0
     const limit = 10
-    const followers = await getFollowers(userId, offset, limit)
-    userList.value = Array.isArray(followers?.data) ? followers.data : (Array.isArray(followers) ? followers : [])
+    console.log('开始加载粉丝列表，用户ID:', userId, 'offset:', offset, 'limit:', limit)
+    
+    const response = await getFollowers(userId, offset, limit)
+    console.log('粉丝列表API响应:', response)
+    
+    // 处理响应数据：request.js 已经提取了 data，所以 response 可能是数组或包含 data 的对象
+    let followersList = []
+    if (Array.isArray(response)) {
+      followersList = response
+    } else if (response && Array.isArray(response.data)) {
+      followersList = response.data
+    } else if (response && response.data) {
+      // 如果 data 不是数组，尝试转换为数组
+      followersList = Array.isArray(response.data) ? response.data : []
+    }
+    
+    console.log('解析后的粉丝列表:', followersList)
+    userList.value = followersList
+    
+    if (followersList.length === 0) {
+      console.log('粉丝列表为空')
+    }
   } catch (error) {
-    console.error('加载关注者列表失败:', error)
+    console.error('加载粉丝列表失败:', error)
+    console.error('错误详情:', {
+      message: error.message,
+      status: error.status,
+      httpData: error.httpData
+    })
     userList.value = []
   } finally {
     userListLoading.value = false
@@ -606,15 +634,43 @@ async function loadFollowers() {
 async function loadFollowing() {
   try {
     const userId = authStore.userId
-    if (!userId) return
+    if (!userId) {
+      console.warn('无法加载关注列表：用户未登录')
+      return
+    }
     
     userListLoading.value = true
     const offset = 0
     const limit = 10
-    const following = await getFollowing(userId, offset, limit)
-    userList.value = Array.isArray(following?.data) ? following.data : (Array.isArray(following) ? following : [])
+    console.log('开始加载关注列表，用户ID:', userId, 'offset:', offset, 'limit:', limit)
+    
+    const response = await getFollowing(userId, offset, limit)
+    console.log('关注列表API响应:', response)
+    
+    // 处理响应数据：request.js 已经提取了 data，所以 response 可能是数组或包含 data 的对象
+    let followingList = []
+    if (Array.isArray(response)) {
+      followingList = response
+    } else if (response && Array.isArray(response.data)) {
+      followingList = response.data
+    } else if (response && response.data) {
+      // 如果 data 不是数组，尝试转换为数组
+      followingList = Array.isArray(response.data) ? response.data : []
+    }
+    
+    console.log('解析后的关注列表:', followingList)
+    userList.value = followingList
+    
+    if (followingList.length === 0) {
+      console.log('关注列表为空')
+    }
   } catch (error) {
     console.error('加载关注列表失败:', error)
+    console.error('错误详情:', {
+      message: error.message,
+      status: error.status,
+      httpData: error.httpData
+    })
     userList.value = []
   } finally {
     userListLoading.value = false
@@ -641,15 +697,23 @@ function closeUserListModal() {
 }
 
 // 关注状态变化处理
-function handleFollowChanged(data) {
+async function handleFollowChanged(data) {
   const { userId, isFollowing } = data
   if (isFollowing) {
     followingCount.value++
   } else {
     followingCount.value = Math.max(0, followingCount.value - 1)
   }
+  
+  // 如果当前显示的是粉丝列表，重新加载以更新 isFollowing 状态
+  if (userListType.value === 'followers') {
+    await loadFollowers()
+  } else if (userListType.value === 'following') {
+    await loadFollowing()
+  }
+  
   // 重新加载用户统计数据以确保准确性
-  loadUserStats()
+  await loadUserStats()
 }
 
 // 跳转到帖子详情

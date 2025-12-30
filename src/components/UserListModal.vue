@@ -19,10 +19,11 @@
           >
             <div class="user-info">
               <img 
-                :src="user.avatar || 'https://modao.cc/ai/uploads/ai_pics/32/327755/aigp_1758963762.jpeg'" 
+                :src="getAvatarUrl(user.avatar || user.avatarUrl, user.nickname || user.username)" 
                 :alt="user.nickname || user.username"
                 class="user-avatar"
                 @click="goToUserDetail(user.userId || user.id)"
+                @error="handleAvatarError($event, user.nickname || user.username)"
               >
               <div class="user-details">
                 <div class="username">{{ user.nickname || user.username }}</div>
@@ -46,10 +47,11 @@
 </template>
 
 <script setup>
-import { ref, computed, watch } from 'vue'
+import { ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { followUser, unfollowUser } from '@/api/user'
+import { getAvatarUrl, handleAvatarError } from '@/utils/avatar'
 
 // Props
 const props = defineProps({
@@ -91,9 +93,18 @@ const isFollowing = (userId) => {
 // 设置用户的关注状态
 const setFollowingStatus = (users) => {
   users.forEach(user => {
-    // 对于关注列表（following），所有用户都是我关注的人，所以followingMap中的值应该都是true
-    // user.isFollowing表示的是对方是否关注了我（即是否互相关注），这个信息用于显示文本，但不影响关注状态
-    followingMap.value.set(user.userId || user.id, props.type === 'following')
+    const userId = user.userId || user.id
+    if (!userId) return
+    
+    if (props.type === 'following') {
+      // 对于关注列表（following），所有用户都是我关注的人，所以followingMap中的值应该都是true
+      // user.isFollowing表示的是对方是否关注了我（即是否互相关注），这个信息用于显示文本，但不影响关注状态
+      followingMap.value.set(userId, true)
+    } else if (props.type === 'followers') {
+      // 对于粉丝列表（followers），使用后端返回的 isFollowing 字段
+      // isFollowing 表示当前用户是否关注了该粉丝（即是否互相关注）
+      followingMap.value.set(userId, user.isFollowing || false)
+    }
   })
 }
 
@@ -155,6 +166,14 @@ const toggleFollow = async (userId) => {
       followingMap.value.set(userId, true)
     }
     
+    // 更新本地用户数据中的 isFollowing 字段（用于粉丝列表）
+    if (props.type === 'followers') {
+      const user = props.users.find(u => (u.userId || u.id) === userId)
+      if (user) {
+        user.isFollowing = !isCurrentlyFollowing
+      }
+    }
+    
     // 通知父组件关注状态变化
     emit('follow-changed', {
       userId,
@@ -162,6 +181,11 @@ const toggleFollow = async (userId) => {
     })
   } catch (error) {
     console.error('关注操作失败:', error)
+    // 如果操作失败，恢复状态
+    const user = props.users.find(u => (u.userId || u.id) === userId)
+    if (user && props.type === 'followers') {
+      user.isFollowing = isFollowing(userId)
+    }
   }
 }
 
@@ -173,11 +197,18 @@ const close = () => {
 // 跳转到用户详情
 const goToUserDetail = (userId) => {
   close() // 先关闭模态框
-  router.push({ name: 'user-detail', params: { id: userId } })
+  router.push({ name: 'user', params: { id: userId } })
 }
 
 // 初始化关注状态
 setFollowingStatus(props.users)
+
+// 监听 users 变化，更新关注状态
+watch(() => props.users, (newUsers) => {
+  if (newUsers && newUsers.length > 0) {
+    setFollowingStatus(newUsers)
+  }
+}, { deep: true, immediate: true })
 </script>
 
 <style scoped>

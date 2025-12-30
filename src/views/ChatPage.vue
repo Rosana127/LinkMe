@@ -105,11 +105,11 @@
               @click="selectChat(chat.id)"
             >
               <!-- 头像部分添加固定宽度和z-index，确保不被消息挤占 -->
-              <div class="relative flex-shrink-0">
+              <div class="relative flex-shrink-0" @click.stop="goToUserDetail(chat.otherId || chat.otherUserId)">
                 <img
                   :src="getAvatarUrl(chat.avatar, chat.name)"
                   :alt="chat.name"
-                  class="w-12 h-12 rounded-full"
+                  class="w-12 h-12 rounded-full cursor-pointer"
                   @error="handleAvatarError($event, chat.name)"
                 />
                 <span
@@ -120,7 +120,7 @@
               <!-- 消息内容区域添加flex布局，确保文本正确截断 -->
               <div class="ml-3 flex-1 min-w-0">
                 <div class="flex justify-between items-start">
-                  <h3 class="font-medium text-white truncate">
+                  <h3 class="font-medium text-white truncate cursor-pointer" @click.stop="goToUserDetail(chat.otherId || chat.otherUserId)">
                     {{ chat.name }}
                   </h3>
                   <span class="text-xs text-gray-400 whitespace-nowrap">{{
@@ -168,9 +168,8 @@
             <div
               v-for="n in filteredNotifications"
               :key="n.notificationId"
-              class="flex flex-col py-3 px-3 rounded-lg hover:bg-gray-800 cursor-pointer transition-colors notification-item"
+              class="flex flex-col py-3 px-3 rounded-lg hover:bg-gray-800 transition-colors notification-item"
               :class="{ unread: !(n.isRead || n.read) }"
-              @click="handleNotificationClick(n)"
             >
               <div class="flex items-center mb-1">
                 <span class="notification-title font-bold text-white mr-2">{{
@@ -182,7 +181,16 @@
                 ></span>
               </div>
               <div class="notification-content text-sm text-gray-200 mb-1">
-                {{ n.content }}
+                <template v-if="getNotificationUserId(n)">
+                  <span 
+                    class="text-purple-400 hover:text-purple-300 cursor-pointer font-medium underline mr-1"
+                    @click.stop="goToUserDetail(getNotificationUserId(n))"
+                    :title="'点击查看 ' + getNotificationActorName(n) + ' 的详情'"
+                  >
+                    {{ getNotificationActorName(n) }}
+                  </span>
+                </template>
+                <span>{{ n.content }}</span>
               </div>
               <div class="notification-time text-xs text-gray-400 mb-1">
                 {{ formatTime(n.createdAt) }}
@@ -216,19 +224,27 @@
           class="flex items-center p-4 border-b border-gray-700 justify-between"
         >
           <div class="flex items-center">
-            <div class="relative">
+            <div 
+              class="relative cursor-pointer hover:opacity-80 transition-opacity" 
+              @click.stop="handleChatHeaderClick"
+              title="点击查看用户详情"
+            >
               <img
                 :src="getAvatarUrl(selectedChat?.avatar, selectedChat?.name)"
                 :alt="selectedChat?.name"
-                class="w-12 h-12 rounded-full"
+                class="w-12 h-12 rounded-full pointer-events-none"
                 @error="handleAvatarError($event, selectedChat?.name)"
               />
               <span
                 v-if="selectedChat?.isOnline"
-                class="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-gray-900 rounded-full"
+                class="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-gray-900 rounded-full pointer-events-none"
               ></span>
             </div>
-            <div class="ml-3">
+            <div 
+              class="ml-3 cursor-pointer hover:opacity-80 transition-opacity" 
+              @click.stop="handleChatHeaderClick"
+              title="点击查看用户详情"
+            >
               <div class="font-medium text-white">{{ selectedChat?.name }}</div>
               <div class="text-xs text-gray-400">
                 {{ selectedChat?.isOnline ? "在线" : "离线" }}
@@ -627,7 +643,13 @@ async function loadNotifications() {
         read: n.read,
         type: n.type,
         actorId: n.actorId,
-        createdAt: n.createdAt
+        actor_id: n.actor_id,
+        userId: n.userId,
+        user_id: n.user_id,
+        fromUserId: n.fromUserId,
+        from_user_id: n.from_user_id,
+        createdAt: n.createdAt,
+        fullData: n // 打印完整数据以便调试
       });
     });
   } catch (e) {
@@ -671,18 +693,79 @@ async function deleteNotification(notificationId) {
   }
 }
 
-// 处理通知点击事件
+// 跳转到用户详情
+function goToUserDetail(userId) {
+  if (!userId) {
+    console.warn('无法跳转：缺少用户ID', userId)
+    console.log('当前 selectedChat:', selectedChat.value)
+    return
+  }
+  console.log('跳转到用户详情页，用户ID:', userId)
+  router.push({ name: 'user', params: { id: userId } })
+}
+
+// 处理聊天头部点击（头像或名称）
+function handleChatHeaderClick() {
+  if (!selectedChat.value) {
+    console.warn('无法跳转：没有选中的聊天')
+    return
+  }
+  
+  const userId = selectedChat.value.otherId || 
+                 selectedChat.value.otherUserId ||
+                 selectedChat.value.other?.id ||
+                 selectedChat.value.other?.userId ||
+                 selectedChat.value.other?.user_id
+  
+  console.log('聊天头部点击，尝试获取用户ID:', {
+    otherId: selectedChat.value.otherId,
+    otherUserId: selectedChat.value.otherUserId,
+    other: selectedChat.value.other,
+    finalUserId: userId,
+    fullChat: selectedChat.value
+  })
+  
+  if (userId) {
+    goToUserDetail(userId)
+  } else {
+    console.error('无法获取用户ID，无法跳转', selectedChat.value)
+  }
+}
+
+// 获取通知中的用户ID
+function getNotificationUserId(notification) {
+  return notification.actorId || 
+         notification.actor_id || 
+         notification.userId || 
+         notification.user_id ||
+         notification.fromUserId ||
+         notification.from_user_id
+}
+
+// 获取通知中的用户名
+function getNotificationActorName(notification) {
+  return notification.actorName ||
+         notification.actor_name ||
+         notification.actorNickname ||
+         notification.actor_nickname ||
+         notification.userName ||
+         notification.user_name ||
+         notification.fromUserName ||
+         notification.from_user_name ||
+         '用户'
+}
+
+// 处理通知点击事件（点击整个通知区域）
 function handleNotificationClick(notification) {
   console.log('🔔 点击通知被触发:', notification);
   
-  // 如果是喜欢通知，跳转到发送者的用户主页
-  if (notification.type === 'LIKE' && notification.actorId) {
-    console.log('喜欢通知，发送者ID:', notification.actorId);
-    
-    // 直接跳转到用户主页
-    router.push({ name: 'user-detail', params: { id: notification.actorId } });
+  const userId = getNotificationUserId(notification)
+  
+  if (userId) {
+    console.log('通知发送者ID:', userId);
+    goToUserDetail(userId);
   } else {
-    console.log('其他类型通知:', notification.type);
+    console.warn('通知没有可用的用户ID，无法跳转', notification);
   }
 }
 

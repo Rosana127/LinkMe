@@ -16,6 +16,7 @@
         :src="userAvatar" 
         alt="User avatar" 
         class="user-avatar"
+        @error="handleAvatarError($event, userNickname || userUsername)"
       >
       <div class="user-info">
         <div class="user-name">{{ userNickname }}</div>
@@ -90,6 +91,7 @@
 import { computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
+import { getAvatarUrl, handleAvatarError } from '@/utils/avatar'
 
 const router = useRouter()
 const authStore = useAuthStore()
@@ -97,7 +99,13 @@ const authStore = useAuthStore()
 const isAuthenticated = computed(() => authStore.isAuthenticated)
 const userNickname = computed(() => authStore.user?.nickname || 'User')
 const userUsername = computed(() => authStore.user?.username || 'username')
-const userAvatar = computed(() => authStore.user?.avatarUrl || 'https://modao.cc/ai/uploads/ai_pics/32/327755/aigp_1758963762.jpeg')
+
+// 获取头像 URL（优先使用真实头像，否则生成文字头像）
+const userAvatar = computed(() => {
+  const avatar = authStore.user?.avatarUrl
+  const name = userNickname.value || userUsername.value || 'User'
+  return getAvatarUrl(avatar, name)
+})
 
 const navigateTo = (routeName) => {
   // 如果需要登录的路由，检查登录状态
