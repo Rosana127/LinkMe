@@ -47,12 +47,12 @@
         
         <div v-if="!isLoading && matches.length > 0" class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
           <div>
-            <h4 class="mb-4">个人简介</h4>
+            <h4 class="mb-4 text-2xl">个人简介</h4>
             <p class="text-gray-700">{{ currentMatch?.bio || '暂无简介' }}</p>
           </div>
           
           <div>
-            <h4 class="mb-4">兴趣爱好</h4>
+            <h4 class="mb-4 text-2xl">兴趣爱好</h4>
             <div class="flex flex-wrap gap-2">
               <span 
                 v-for="interest in (currentMatch?.interests || [])" 
@@ -133,7 +133,7 @@
       </div>
       
       <!-- 高匹配度列表 -->
-      <div class="bg-white/40 border border-gray-300/50 rounded-xl p-6">
+      <div v-if="hasQuestionnaire" class="bg-white/40 border border-gray-300/50 rounded-xl p-6">
         <div class="flex items-center justify-between mb-4">
           <h4 class="text-lg">高匹配度推荐</h4>
           <span class="text-xs text-gray-500">基于问卷匹配</span>
@@ -196,6 +196,29 @@
           </div>
         </div>
       </div>
+      
+      <!-- 未填写问卷提示 -->
+      <div v-else class="bg-white/40 border border-gray-300/50 rounded-xl p-6">
+        <div class="text-center py-8">
+          <span class="iconify text-4xl mb-4 block text-gray-400" data-icon="mdi:file-question" data-inline="false"></span>
+          <p class="text-sm text-gray-600 mb-2">完成问卷后可查看高匹配度推荐</p>
+          <button 
+            @click="goToQuestionnaire" 
+            class="mt-4 px-6 py-2 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg hover:from-purple-600 hover:to-pink-600 transition-all"
+          >
+            去填写问卷
+          </button>
+        </div>
+      </div>
+    </div>
+    
+    <!-- 提示消息 -->
+    <div 
+      v-if="showQuestionnaireTip" 
+      class="fixed top-20 left-1/2 transform -translate-x-1/2 bg-red-500 text-white px-6 py-3 rounded-lg shadow-lg z-50 flex items-center gap-2 animate-fade-in"
+    >
+      <span class="iconify" data-icon="mdi:alert-circle" data-inline="false"></span>
+      <span>{{ tipMessage }}</span>
     </div>
   </div>
 </template>
@@ -213,6 +236,12 @@ const router = useRouter()
 const authStore = useAuthStore()
 const cardClass = ref('swipe-pending')
 const isLoading = ref(false)
+
+// 检查用户是否填写过问卷
+const hasQuestionnaire = ref(false)
+const checkingQuestionnaire = ref(false)
+const showQuestionnaireTip = ref(false)
+const tipMessage = ref('')
 
 // 匹配列表数据
 const matches = ref([])
@@ -363,6 +392,12 @@ const nextMatch = () => {
 
 // 喜欢用户（发送通知，不跳转聊天）
 const likeUser = async () => {
+  // 检查是否填写过问卷
+  if (!hasQuestionnaire.value) {
+    showTip('请您完成问卷调查')
+    return
+  }
+  
   const userId = currentMatch.value?.id || currentIndex.value
   if (!userId) {
     console.warn('喜欢用户失败：当前用户缺少 id', currentMatch.value)
@@ -413,6 +448,12 @@ const likeUser = async () => {
 
 // 发起聊天
 const startChat = () => {
+  // 检查是否填写过问卷
+  if (!hasQuestionnaire.value) {
+    showTip('请您完成问卷调查')
+    return
+  }
+  
   const targetUserId = currentMatch.value?.id
   if (!targetUserId) {
     console.warn('发起聊天失败：当前用户缺少 id', currentMatch.value)
@@ -463,6 +504,40 @@ const selectMatchUser = (user) => {
 
 const goToQuestionnaire = () => {
   router.push('/questionnaire')
+}
+
+// 检查用户是否填写过问卷
+const checkUserQuestionnaire = async () => {
+  checkingQuestionnaire.value = true
+  try {
+    const questionnaire = await getQuestionnaire()
+    const qData = questionnaire?.data || questionnaire || {}
+    
+    // 检查是否有问卷数据（至少要有interests或其他字段）
+    const hasData = qData.interests?.length > 0 || 
+                    qData.socialEnergy || 
+                    qData.decisionMaking || 
+                    qData.lifeRhythm || 
+                    qData.communicationStyle
+    
+    hasQuestionnaire.value = !!hasData
+    console.log('用户问卷检查结果:', hasQuestionnaire.value, qData)
+  } catch (error) {
+    // 如果获取失败，说明没有填写过问卷
+    hasQuestionnaire.value = false
+    console.log('用户未填写问卷或获取失败:', error)
+  } finally {
+    checkingQuestionnaire.value = false
+  }
+}
+
+// 显示提示信息
+const showTip = (message) => {
+  tipMessage.value = message
+  showQuestionnaireTip.value = true
+  setTimeout(() => {
+    showQuestionnaireTip.value = false
+  }, 3000)
 }
 
 // 加载匹配推荐列表（使用后端计算匹配度）
@@ -793,6 +868,12 @@ const loadUserQuestionnaires = async () => {
 
 // 加载高匹配度推荐列表（使用后端匹配推荐API）
 const loadHighMatchUsers = async () => {
+  // 如果用户没有填写问卷，不加载高匹配度推荐
+  if (!hasQuestionnaire.value) {
+    highMatchUsers.value = []
+    return
+  }
+  
   try {
     console.log('开始加载高匹配度推荐列表（使用后端匹配推荐API）...')
 
@@ -814,7 +895,8 @@ const loadHighMatchUsers = async () => {
       id: rec.userId,
       name: rec.nickname || '未知用户',
       age: calculateAge(rec.birthday) || 25,
-      photo: rec.avatarUrl || 'https://modao.cc/ai/uploads/ai_pics/32/327751/aigp_1758963754.jpeg',
+      photo: rec.avatarUrl || rec.avatar || rec.photo || null, // 不设置默认值，让getUserAvatar处理
+      gender: rec.gender, // 保存gender，用于getUserAvatar
       matchScore: rec.matchScore || 0,
       isOnline: Math.random() > 0.5 // 随机在线状态，后续可以从后端获取
     }))
@@ -835,9 +917,17 @@ const loadHighMatchUsers = async () => {
 }
 
 // 页面加载时获取匹配用户 & 高匹配度推荐
-onMounted(() => {
+onMounted(async () => {
+  // 先检查用户是否填写过问卷
+  await checkUserQuestionnaire()
+  
+  // 加载今日推荐（无论是否填写问卷都可以看）
   loadMatchedUsers()
-  loadHighMatchUsers()
+  
+  // 只有填写过问卷才加载高匹配度推荐
+  if (hasQuestionnaire.value) {
+    loadHighMatchUsers()
+  }
 })
 </script>
 
@@ -873,5 +963,20 @@ onMounted(() => {
   50% {
     transform: scale(1.1);
   }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -10px);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+}
+
+.animate-fade-in {
+  animation: fade-in 0.3s ease-out;
 }
 </style>
