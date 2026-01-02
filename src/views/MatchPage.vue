@@ -2,7 +2,7 @@
   <div class="flex">
     <div class="flex-1 max-w-2xl mx-auto">
       <div class="bg-white rounded-xl p-8 shadow-sm mb-6">
-        <h3 class="text-xl font-bold mb-6">今日推荐</h3>
+        <h3 class="text-xl mb-6">今日推荐</h3>
         
         <!-- 加载状态 -->
         <div v-if="isLoading" class="text-center py-12">
@@ -21,41 +21,38 @@
         <div 
           v-else
           id="match-card" 
-          class="match-card relative rounded-xl overflow-hidden shadow-lg h-96 mb-6"
+          class="match-card relative rounded-xl overflow-hidden shadow-lg h-96 mb-6 group"
           :class="cardClass"
         >
           <img 
-            :src="currentMatch?.photo || ''" 
+            :src="getUserAvatar(currentMatch)" 
             :alt="currentMatch?.name || '用户'" 
-            class="w-full h-full object-cover"
+            class="w-full h-full object-cover transition-opacity duration-300 group-hover:opacity-75"
           >
           <div class="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 via-black/30 to-transparent p-5 text-white">
-            <h2 class="text-xl font-bold">{{ currentMatch?.name || '未知' }}, {{ currentMatch?.age || 0 }}</h2>
-            <p class="text-sm">{{ currentMatch?.location || '' }} · {{ currentMatch?.job || '' }}</p>
-            <div class="flex mt-1">
-              <span class="iconify mr-1" data-icon="mdi:map-marker" data-inline="false"></span>
-              <span class="text-xs">{{ currentMatch?.distance || '' }}</span>
-            </div>
-            <div class="flex mt-3 space-x-2">
-              <span 
-                v-for="tag in (currentMatch?.tags || [])" 
-                :key="tag"
-                class="bg-primary-500 text-xs rounded-full px-3 py-1"
-              >
-                {{ tag }}
-              </span>
-            </div>
+            <h2 class="text-xl mb-2">{{ currentMatch?.name || '未知' }}</h2>
+            <p class="text-sm">
+              <template v-if="getGenderText(currentMatch?.gender)">
+                {{ getGenderText(currentMatch?.gender) }}
+              </template>
+              <template v-if="getGenderText(currentMatch?.gender) && currentMatch?.location && currentMatch.location !== ''">
+                <span class="mx-2">·</span>
+              </template>
+              <template v-if="currentMatch?.location && currentMatch.location !== ''">
+                {{ currentMatch.location }}
+              </template>
+            </p>
           </div>
         </div>
         
         <div v-if="!isLoading && matches.length > 0" class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
           <div>
-            <h4 class="font-medium mb-4">个人简介</h4>
+            <h4 class="mb-4">个人简介</h4>
             <p class="text-gray-700">{{ currentMatch?.bio || '暂无简介' }}</p>
           </div>
           
           <div>
-            <h4 class="font-medium mb-4">兴趣爱好</h4>
+            <h4 class="mb-4">兴趣爱好</h4>
             <div class="flex flex-wrap gap-2">
               <span 
                 v-for="interest in (currentMatch?.interests || [])" 
@@ -74,7 +71,7 @@
             <button 
               @click.stop.prevent="previousMatch" 
               type="button"
-              class="flex-1 px-6 py-3 rounded-lg font-medium flex items-center justify-center transition-all border-2 relative z-10"
+              class="flex-1 px-6 py-3 rounded-lg flex items-center justify-center transition-all border-2 relative z-10"
               :class="currentIndex === 0 
                 ? 'bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed' 
                 : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50 hover:shadow-md active:scale-95 cursor-pointer'"
@@ -82,19 +79,19 @@
               style="pointer-events: auto;"
             >
               <span class="iconify mr-2 text-lg" data-icon="mdi:chevron-left" data-inline="false"></span>
-              <span class="whitespace-nowrap text-base font-semibold">上一个</span>
+              <span class="whitespace-nowrap text-base">上一个</span>
             </button>
             <button 
               @click.stop.prevent="nextMatch" 
               type="button"
-              class="flex-1 px-6 py-3 rounded-lg font-medium flex items-center justify-center transition-all border-2 relative z-10"
+              class="flex-1 px-6 py-3 rounded-lg flex items-center justify-center transition-all border-2 relative z-10"
               :class="currentIndex >= matches.length - 1 
                 ? 'bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed' 
                 : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50 hover:shadow-md active:scale-95 cursor-pointer'"
               :disabled="currentIndex >= matches.length - 1"
               style="pointer-events: auto;"
             >
-              <span class="whitespace-nowrap text-base font-semibold">下一个</span>
+              <span class="whitespace-nowrap text-base">下一个</span>
               <span class="iconify ml-2 text-lg" data-icon="mdi:chevron-right" data-inline="false"></span>
             </button>
           </div>
@@ -115,7 +112,7 @@
               title="喜欢"
             >
               <span class="iconify text-xl" data-icon="mdi:heart" data-inline="false"></span>
-              <span class="whitespace-nowrap text-sm font-medium">喜欢</span>
+              <span class="whitespace-nowrap text-sm">喜欢</span>
             </button>
           </div>
         </div>
@@ -124,21 +121,21 @@
     
     <div class="w-80 ml-6">
       <div class="bg-white rounded-xl p-6 shadow-sm mb-6">
-        <h4 class="font-bold mb-4">专属匹配问卷</h4>
+        <h4 class="mb-4">专属匹配问卷</h4>
         <p class="text-sm text-gray-600 mb-4">完善你的个人资料，获得更精准的匹配推荐</p>
         <button 
           @click="goToQuestionnaire" 
           class="questionnaire-btn w-full bg-gradient-to-r from-purple-500 to-pink-500 text-white py-4 px-4 rounded-xl hover:from-purple-600 hover:to-pink-600 transition-all duration-300 flex items-center justify-center shadow-lg hover:shadow-xl transform hover:scale-105"
         >
           <span class="iconify mr-3 text-3xl" data-icon="mdi:file-document-edit" data-inline="false"></span>
-          <span class="text-lg font-semibold">开始问卷</span>
+          <span class="text-lg">开始问卷</span>
         </button>
       </div>
       
       <!-- 高匹配度列表 -->
       <div class="bg-white rounded-xl p-6 shadow-sm">
         <div class="flex items-center justify-between mb-4">
-          <h4 class="font-bold text-lg">高匹配度推荐</h4>
+          <h4 class="text-lg">高匹配度推荐</h4>
           <span class="text-xs text-gray-500">基于问卷匹配</span>
         </div>
         
@@ -153,7 +150,7 @@
             <!-- 头像 -->
             <div class="relative flex-shrink-0">
               <img 
-                :src="user.photo" 
+                :src="getUserAvatar(user)" 
                 :alt="user.name"
                 class="w-12 h-12 rounded-full object-cover border-2"
                 :class="user.matchScore >= 90 ? 'border-green-400' : user.matchScore >= 80 ? 'border-yellow-400' : 'border-gray-300'"
@@ -168,7 +165,7 @@
             <!-- 用户信息 -->
             <div class="flex-1 min-w-0">
               <div class="flex items-center gap-2 mb-1">
-                <span class="font-semibold text-gray-900 truncate">{{ user.name }}</span>
+                <span class="text-gray-900 truncate">{{ user.name }}</span>
                 <span class="text-xs text-gray-500">{{ user.age }}岁</span>
               </div>
               
@@ -182,7 +179,7 @@
                   ></div>
                 </div>
                 <span 
-                  class="text-xs font-bold min-w-[40px] text-right"
+                  class="text-xs min-w-[40px] text-right"
                   :class="getMatchScoreTextColor(user.matchScore)"
                 >
                   {{ user.matchScore }}%
@@ -204,7 +201,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { getUsersWithQuestionnaire } from '@/api/user'
 import { getQuestionnaire, getPublicQuestionnaire } from '@/api/questionnaire'
@@ -249,6 +246,96 @@ const isLiked = computed(() => {
   const userId = currentMatch.value?.id || currentIndex.value
   return likedUsers.value.has(userId)
 })
+
+// 当前匹配对象的personality数据（响应式引用）
+const currentPersonalityData = ref(null)
+const loadingPersonality = ref(false)
+
+// 加载当前用户的personality数据
+const loadCurrentPersonalityData = async () => {
+  if (!currentMatch.value || !currentMatch.value.id) {
+    currentPersonalityData.value = null
+    return
+  }
+  
+  // 如果已经有数据，直接使用
+  const existingPersonality = {
+    socialEnergy: currentMatch.value.socialEnergy,
+    decisionMaking: currentMatch.value.decisionMaking,
+    lifeRhythm: currentMatch.value.lifeRhythm,
+    communicationStyle: currentMatch.value.communicationStyle
+  }
+  
+  const filteredExisting = Object.fromEntries(
+    Object.entries(existingPersonality).filter(([, value]) => value !== null && value !== undefined && value !== '')
+  )
+  
+  if (Object.keys(filteredExisting).length > 0) {
+    currentPersonalityData.value = filteredExisting
+    console.log('✅ 使用已有的 Personality 数据:', currentPersonalityData.value)
+    return
+  }
+  
+  // 如果没有数据，调用API获取
+  loadingPersonality.value = true
+  currentPersonalityData.value = null
+  
+  try {
+    console.log(`正在从API获取用户 ${currentMatch.value.id} 的公开问卷信息（性格数据）...`)
+    const questionnaire = await getPublicQuestionnaire(currentMatch.value.id)
+    
+    console.log(`用户 ${currentMatch.value.id} 的公开问卷原始响应:`, questionnaire)
+    
+    // 处理不同的响应格式
+    const qData = questionnaire?.data || questionnaire || {}
+    
+    console.log(`用户 ${currentMatch.value.id} 的解析后数据:`, qData)
+    
+    // 提取personality字段
+    const personality = {
+      socialEnergy: qData.socialEnergy,
+      decisionMaking: qData.decisionMaking,
+      lifeRhythm: qData.lifeRhythm,
+      communicationStyle: qData.communicationStyle
+    }
+    
+    // 过滤掉空值
+    const filtered = Object.fromEntries(
+      Object.entries(personality).filter(([, value]) => value !== null && value !== undefined && value !== '')
+    )
+    
+    if (Object.keys(filtered).length > 0) {
+      currentPersonalityData.value = filtered
+      
+      // 同时更新到 matches 数组中，避免重复请求
+      const matchIndex = matches.value.findIndex(m => m.id === currentMatch.value.id)
+      if (matchIndex >= 0) {
+        matches.value[matchIndex].socialEnergy = qData.socialEnergy || null
+        matches.value[matchIndex].decisionMaking = qData.decisionMaking || null
+        matches.value[matchIndex].lifeRhythm = qData.lifeRhythm || null
+        matches.value[matchIndex].communicationStyle = qData.communicationStyle || null
+      }
+      
+      console.log('✅ 从API加载 Personality 数据成功:', currentPersonalityData.value)
+    } else {
+      currentPersonalityData.value = null
+      console.log('⚠️ 未找到 Personality 数据')
+    }
+  } catch (error) {
+    console.error('❌ 加载 Personality 数据失败:', error)
+    currentPersonalityData.value = null
+  } finally {
+    loadingPersonality.value = false
+  }
+}
+
+// 监听当前匹配对象的变化，自动加载personality数据
+watch(() => currentMatch.value?.id, (newUserId) => {
+  if (newUserId) {
+    // 重置personality数据
+    currentPersonalityData.value = null
+  }
+}, { immediate: false })
 
 // 上一个匹配
 const previousMatch = () => {
@@ -412,7 +499,7 @@ const loadMatchedUsers = async () => {
         location: rec.region || '未知',
         job: '未知', // 后端暂未提供此字段
         distance: '未知距离', // 后端暂未提供此字段
-        photo: rec.avatarUrl || 'https://modao.cc/ai/uploads/ai_pics/32/327751/aigp_1758963754.jpeg',
+        photo: rec.avatarUrl || getDefaultAvatar(rec.gender),
         bio: rec.bio || '这个人很懒，什么都没有留下。',
         tags: [], // 后端暂未提供此字段
         interests: [], // 后续通过问卷API加载
@@ -447,6 +534,67 @@ const loadMatchedUsers = async () => {
     isLoading.value = false
     console.log('加载完成，最终用户数量:', matches.value.length)
   }
+}
+
+// Personality 字段的中文映射
+const PERSONALITY_LABELS = {
+  socialEnergy: {
+    extroverted: '外向型',
+    introverted: '内向型',
+    ambivert: '中间型'
+  },
+  decisionMaking: {
+    rational: '理性型',
+    emotional: '感性型',
+    balanced: '平衡型'
+  },
+  lifeRhythm: {
+    planned: '计划型',
+    spontaneous: '随性型',
+    flexible: '灵活型'
+  },
+  communicationStyle: {
+    direct: '直接型',
+    tactful: '委婉型',
+    humorous: '幽默型',
+    listening: '倾听型',
+    quiet: '安静型'
+  }
+}
+
+// 获取 Personality 标签
+const getPersonalityLabel = (field, value) => {
+  return PERSONALITY_LABELS[field]?.[value] || value
+}
+
+// 根据性别获取默认头像
+// 图2：男性/中性角色（红棕色头发，动漫风格）
+// 图3：女性角色（蓝色头发，黄色发夹，动漫风格）
+const getDefaultAvatar = (gender) => {
+  // 如果gender是'female'或'女'，返回女性头像（图3）
+  if (gender === 'female' || gender === '女' || gender === 'F') {
+    return '/default-avatar-female.png' // 图3：女性角色
+  }
+  // 默认返回男性/中性头像（图2）
+  return '/default-avatar-male.png' // 图2：男性/中性角色
+}
+
+// 获取用户头像（优先使用用户上传的头像，否则根据性别返回默认头像）
+const getUserAvatar = (user) => {
+  const avatarUrl = user?.avatarUrl || user?.avatar || user?.photo
+  if (avatarUrl) {
+    return avatarUrl
+  }
+  // 如果没有头像，根据性别返回默认头像
+  return getDefaultAvatar(user?.gender)
+}
+
+// 获取性别显示文本
+const getGenderText = (gender) => {
+  if (!gender) return ''
+  if (gender === 'male' || gender === '男' || gender === 'M') return '男'
+  if (gender === 'female' || gender === '女' || gender === 'F') return '女'
+  return gender
 }
 
 // 兴趣编码到名称的映射（与问卷页保持一致）
@@ -526,8 +674,8 @@ const formatUsersData = (usersData) => {
     job: user.job || user.profession || '未知',
     // 距离：如果有就使用，否则使用默认值
     distance: user.distance || '未知距离',
-    // 头像：优先使用 avatarUrl，然后是 avatar、photo
-    photo: user.avatarUrl || user.avatar || user.photo || 'https://modao.cc/ai/uploads/ai_pics/32/327751/aigp_1758963754.jpeg',
+    // 头像：优先使用 avatarUrl，然后是 avatar、photo，最后根据性别使用默认头像
+    photo: user.avatarUrl || user.avatar || user.photo || getDefaultAvatar(user.gender),
     // 简介：bio、introduction、description
     bio: user.bio || user.introduction || user.description || '这个人很懒，什么都没有留下。',
     // 标签和兴趣
@@ -541,7 +689,12 @@ const formatUsersData = (usersData) => {
     email: user.email,
     phone: user.phone,
     username: user.username,
-    createdAt: user.createdAt
+    createdAt: user.createdAt,
+    // Personality 字段
+    socialEnergy: user.socialEnergy || null,
+    decisionMaking: user.decisionMaking || null,
+    lifeRhythm: user.lifeRhythm || null,
+    communicationStyle: user.communicationStyle || null
   }))
 }
 
@@ -596,17 +749,24 @@ const loadUserQuestionnaires = async () => {
       
       console.log(`用户 ${userId} 的兴趣数据:`, interests)
       
-      if (interests.length > 0) {
-        // 将兴趣编码转换为中文名称
-        const interestLabels = convertInterestsToLabels(interests)
-        
-        console.log(`用户 ${userId} 转换后的兴趣标签:`, interestLabels)
-        
-        // 更新到 matches 数组中
-        const matchIndex = matches.value.findIndex(m => m.id === userId)
-        if (matchIndex >= 0) {
+      // 更新到 matches 数组中
+      const matchIndex = matches.value.findIndex(m => m.id === userId)
+      if (matchIndex >= 0) {
+        if (interests.length > 0) {
+          // 将兴趣编码转换为中文名称
+          const interestLabels = convertInterestsToLabels(interests)
           matches.value[matchIndex].interests = interestLabels
           console.log(`✅ 用户 ${userId} 的兴趣爱好已加载:`, interestLabels)
+        }
+        
+        // 更新personality字段
+        if (qData.socialEnergy) matches.value[matchIndex].socialEnergy = qData.socialEnergy
+        if (qData.decisionMaking) matches.value[matchIndex].decisionMaking = qData.decisionMaking
+        if (qData.lifeRhythm) matches.value[matchIndex].lifeRhythm = qData.lifeRhythm
+        if (qData.communicationStyle) matches.value[matchIndex].communicationStyle = qData.communicationStyle
+        
+        if (qData.socialEnergy || qData.decisionMaking || qData.lifeRhythm || qData.communicationStyle) {
+          console.log(`✅ 用户 ${userId} 的 Personality 数据已加载`)
         }
       } else {
         console.log(`用户 ${userId} 的公开问卷中没有兴趣爱好数据，可用字段:`, Object.keys(qData))
