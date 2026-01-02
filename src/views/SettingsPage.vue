@@ -38,7 +38,28 @@
               <h3>Theme</h3>
               <p>Choose your preferred theme</p>
             </div>
-            <button class="settings-btn">Change</button>
+            <div class="theme-selector-wrapper">
+              <button 
+                class="settings-btn" 
+                @click="toggleThemeMenu"
+                :class="{ active: showThemeMenu }"
+              >
+                {{ getCurrentThemeName() }}
+                <span class="iconify" data-icon="mdi:chevron-down" data-inline="false"></span>
+              </button>
+              <div v-if="showThemeMenu" class="theme-menu">
+                <button
+                  v-for="theme in availableThemes"
+                  :key="theme.id"
+                  class="theme-option"
+                  :class="{ active: currentTheme === theme.id }"
+                  @click="selectTheme(theme.id)"
+                >
+                  <span class="theme-name">{{ theme.name }}</span>
+                  <span v-if="currentTheme === theme.id" class="iconify" data-icon="mdi:check" data-inline="false"></span>
+                </button>
+              </div>
+            </div>
           </div>
           <div class="settings-item">
             <div class="item-info">
@@ -247,13 +268,14 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { getUserInfo, updateUserInfo } from '@/api/user'
 import { fetchTagDefinitions } from '@/api/tags'
 import { parseJwtPayload, buildUpdatePayload as utilBuildUpdatePayload, extractServerMessage as utilExtractServerMessage } from '@/utils/settingsProfile'
 import * as aiApi from '@/api/ai'
+import { getCurrentTheme, setTheme, getAvailableThemes, THEMES } from '@/utils/theme'
 
 const router = useRouter()
 const authStore = useAuthStore()
@@ -326,6 +348,46 @@ async function toggleAI() {
   }
 }
 onMounted(loadAIStatus)
+
+// 主题选择相关
+const showThemeMenu = ref(false)
+const currentTheme = ref(getCurrentTheme())
+const availableThemes = ref(getAvailableThemes())
+
+// 切换主题菜单显示
+function toggleThemeMenu() {
+  showThemeMenu.value = !showThemeMenu.value
+}
+
+// 选择主题
+function selectTheme(themeId) {
+  currentTheme.value = themeId
+  setTheme(themeId)
+  showThemeMenu.value = false
+}
+
+// 获取当前主题名称
+function getCurrentThemeName() {
+  const theme = availableThemes.value.find(t => t.id === currentTheme.value)
+  return theme ? theme.name : '无主题'
+}
+
+// 点击外部关闭菜单
+function handleClickOutside(event) {
+  const themeSelector = document.querySelector('.theme-selector-wrapper')
+  if (themeSelector && !themeSelector.contains(event.target)) {
+    showThemeMenu.value = false
+  }
+}
+
+onMounted(() => {
+  document.addEventListener('click', handleClickOutside)
+  currentTheme.value = getCurrentTheme()
+})
+
+onUnmounted(() => {
+  document.removeEventListener('click', handleClickOutside)
+})
 
 // 小函数：尝试从 store 或 token 中获得 userId
 function resolveUserId() {
@@ -1018,6 +1080,72 @@ const handleLogout = () => {
 
 .tags-scroll::-webkit-scrollbar-thumb:hover {
   background: #666666;
+}
+
+/* 主题选择器样式 */
+.theme-selector-wrapper {
+  position: relative;
+}
+
+.settings-btn.active {
+  background-color: #7c3aed;
+}
+
+.settings-btn .iconify {
+  margin-left: 4px;
+  font-size: 14px;
+  transition: transform 0.2s;
+}
+
+.settings-btn.active .iconify {
+  transform: rotate(180deg);
+}
+
+.theme-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  background-color: #1a1a1a;
+  border: 1px solid #333333;
+  border-radius: 8px;
+  padding: 8px;
+  min-width: 160px;
+  z-index: 1000;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.theme-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 10px 12px;
+  background: none;
+  border: none;
+  color: #ffffff;
+  font-size: 14px;
+  cursor: pointer;
+  border-radius: 6px;
+  transition: background-color 0.2s;
+  text-align: left;
+}
+
+.theme-option:hover {
+  background-color: #2a2a2a;
+}
+
+.theme-option.active {
+  background-color: #3a3a3a;
+  color: #8b5cf6;
+}
+
+.theme-name {
+  flex: 1;
+}
+
+.theme-option .iconify {
+  font-size: 18px;
+  color: #8b5cf6;
 }
 
 @media (max-width: 768px) {

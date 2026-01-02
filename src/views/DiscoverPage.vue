@@ -634,8 +634,9 @@ function handleClickOutside(event) {
 
 <style scoped>
 .explore-page {
-  max-width: 1000px;
-  margin: 0 auto;
+  max-width: 100%;
+  margin: 0;
+  width: 100%;
 }
 
 .page-title {
@@ -644,6 +645,7 @@ function handleClickOutside(event) {
   color: #333333;
   margin-top: 50px;
   margin-bottom: 1px;
+  padding-left: 0;
 }
 
 /* 模态框样式 */
@@ -778,12 +780,12 @@ function handleClickOutside(event) {
   right: 0;
   width: calc(100% - 280px);
   z-index: 100;
-  background-color: #ffffff;
+  background-color: transparent;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 15px 20px;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  padding: 15px 0;
+  box-shadow: none;
 }
 
 .categories {
@@ -849,6 +851,8 @@ function handleClickOutside(event) {
   gap: 20px;
   margin-top: 100px;
   padding-bottom: 40px;
+  padding-left: 0;
+  padding-right: 0;
 }
 
 .post-card {

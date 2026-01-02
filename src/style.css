@@ -14,11 +14,42 @@ body {
   background-color: #ffffff;
   color: #333333;
   line-height: 1.6;
+  position: relative;
 }
 
 #app {
   min-height: 100vh;
-  background-color: #ffffff;
+  background-color: transparent;
+  position: relative;
+  z-index: 1;
+}
+
+/* 主题背景样式 - 应用到主内容区域（.main-content） */
+.main-content.has-theme-bg {
+  position: relative;
+  min-height: 100vh;
+}
+
+.main-content.has-theme-bg::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-image: var(--theme-bg-image);
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-attachment: fixed;
+  opacity: 0.45;
+  z-index: 0;
+  pointer-events: none;
+}
+
+.main-content.has-theme-bg > * {
+  position: relative;
+  z-index: 1;
 }
 
 /* 滚动条样式 */

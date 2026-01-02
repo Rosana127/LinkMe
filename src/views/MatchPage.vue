@@ -1,7 +1,7 @@
 <template>
-  <div class="flex">
-    <div class="flex-1 max-w-2xl mx-auto">
-      <div class="bg-white rounded-xl p-8 shadow-sm mb-6">
+  <div class="flex match-page">
+    <div class="flex-1">
+      <div class="bg-white/40 border border-gray-300/50 rounded-xl p-8 mb-6">
         <h3 class="text-xl mb-6">今日推荐</h3>
         
         <!-- 加载状态 -->
@@ -57,7 +57,7 @@
               <span 
                 v-for="interest in (currentMatch?.interests || [])" 
                 :key="interest"
-                class="bg-gray-100 rounded-full px-3 py-1 text-sm"
+                class="bg-white/30 backdrop-blur-sm rounded-full px-3 py-1 text-sm"
               >
                 {{ interest }}
               </span>
@@ -74,7 +74,7 @@
               class="flex-1 px-6 py-3 rounded-lg flex items-center justify-center transition-all border-2 relative z-10"
               :class="currentIndex === 0 
                 ? 'bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed' 
-                : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50 hover:shadow-md active:scale-95 cursor-pointer'"
+                : 'bg-transparent border-gray-300 text-gray-700 hover:bg-white/20 hover:shadow-md active:scale-95 cursor-pointer'"
               :disabled="currentIndex === 0"
               style="pointer-events: auto;"
             >
@@ -87,7 +87,7 @@
               class="flex-1 px-6 py-3 rounded-lg flex items-center justify-center transition-all border-2 relative z-10"
               :class="currentIndex >= matches.length - 1 
                 ? 'bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed' 
-                : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50 hover:shadow-md active:scale-95 cursor-pointer'"
+                : 'bg-transparent border-gray-300 text-gray-700 hover:bg-white/20 hover:shadow-md active:scale-95 cursor-pointer'"
               :disabled="currentIndex >= matches.length - 1"
               style="pointer-events: auto;"
             >
@@ -120,7 +120,7 @@
     </div>
     
     <div class="w-80 ml-6">
-      <div class="bg-white rounded-xl p-6 shadow-sm mb-6">
+      <div class="bg-white/40 border border-gray-300/50 rounded-xl p-6 mb-6">
         <h4 class="mb-4">专属匹配问卷</h4>
         <p class="text-sm text-gray-600 mb-4">完善你的个人资料，获得更精准的匹配推荐</p>
         <button 
@@ -133,7 +133,7 @@
       </div>
       
       <!-- 高匹配度列表 -->
-      <div class="bg-white rounded-xl p-6 shadow-sm">
+      <div class="bg-white/40 border border-gray-300/50 rounded-xl p-6">
         <div class="flex items-center justify-between mb-4">
           <h4 class="text-lg">高匹配度推荐</h4>
           <span class="text-xs text-gray-500">基于问卷匹配</span>
@@ -144,8 +144,8 @@
             v-for="user in highMatchUsers" 
             :key="user.id"
             @click="selectMatchUser(user)"
-            class="flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-all hover:bg-gray-50 hover:shadow-md border border-transparent hover:border-gray-200"
-            :class="{ 'bg-purple-50 border-purple-200': selectedUser?.id === user.id }"
+            class="flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-all hover:bg-white/20 hover:shadow-md border border-transparent hover:border-white/30"
+            :class="{ 'bg-purple-500/30 border-purple-300/50': selectedUser?.id === user.id }"
           >
             <!-- 头像 -->
             <div class="relative flex-shrink-0">

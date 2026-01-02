@@ -29,10 +29,11 @@
 </template>
 
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, ref, onMounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import Sidebar from './components/Sidebar.vue'
+import { initTheme, applyTheme } from '@/utils/theme'
 
 const route = useRoute()
 const authStore = useAuthStore()
@@ -52,6 +53,17 @@ const showRightSidebar = computed(() => {
 
 // 路由监听和组件加载相关代码已简化
 
+// 初始化主题
+onMounted(() => {
+  initTheme()
+})
+
+// 监听路由变化，重新应用主题到新页面
+watch(() => route.name, () => {
+  setTimeout(() => {
+    applyTheme()
+  }, 200)
+})
 
 // 用户统计数据相关代码已移除
 
@@ -67,7 +79,7 @@ const showRightSidebar = computed(() => {
 
 .main-content {
   flex: 1;
-  padding: 20px;
+  padding: 20px 20px 20px 40px;
   margin-left: 260px;
   background-color: #ffffff;
 }
@@ -75,8 +87,9 @@ const showRightSidebar = computed(() => {
 .content-wrapper {
   display: flex;
   gap: 20px;
-  max-width: 1200px;
-  margin: 0 auto;
+  max-width: 100%;
+  margin: 0;
+  width: 100%;
 }
 
 .main-feed {
