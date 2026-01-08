@@ -1,6 +1,7 @@
 <template>
   <div class="flex match-page">
-    <div class="flex-1">
+    <!-- 今日推荐区域，稍微窄一点 -->
+    <div class="flex-[1.2]">
       <div class="bg-white/40 border border-gray-300/50 rounded-xl p-8 mb-6">
         <h3 class="text-xl mb-6">今日推荐</h3>
         
@@ -67,7 +68,7 @@
         
         <div v-if="!isLoading && matches.length > 0" class="space-y-4 mb-6">
           <!-- 上一页、下一页按钮行 -->
-          <div class="flex justify-between items-center gap-4">
+          <div class="nav-buttons-container flex justify-between items-center gap-4">
             <button 
               @click.stop.prevent="previousMatch" 
               type="button"
@@ -106,12 +107,19 @@
               <span class="whitespace-nowrap">发起聊天</span>
             </button>
             <button 
-              class="px-4 py-3 rounded-lg bg-red-500 text-white hover:bg-red-600 transition-all flex items-center justify-center gap-2 shadow-md hover:shadow-lg active:scale-95 flex-shrink-0"
+              class="px-4 py-3 rounded-lg transition-all flex items-center justify-center gap-2 shadow-md hover:shadow-lg active:scale-95 flex-shrink-0"
+              :class="isLiked 
+                ? 'bg-red-400 text-white hover:bg-red-500 ring-2 ring-red-200' 
+                : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-300'"
               @click="likeUser"
-              :class="isLiked ? 'bg-red-600 ring-2 ring-red-300' : ''"
               title="喜欢"
             >
-              <span class="iconify text-xl" data-icon="mdi:heart" data-inline="false"></span>
+              <span 
+                class="iconify text-xl" 
+                :data-icon="isLiked ? 'mdi:heart' : 'mdi:heart-outline'" 
+                :class="isLiked ? 'text-white' : 'text-red-500'"
+                data-inline="false"
+              ></span>
               <span class="whitespace-nowrap text-sm">喜欢</span>
             </button>
           </div>
@@ -119,7 +127,8 @@
       </div>
     </div>
     
-    <div class="w-80 ml-6">
+    <!-- 右侧推荐区域，稍微宽一点 -->
+    <div class="w-96 ml-8">
       <div class="bg-white/40 border border-gray-300/50 rounded-xl p-6 mb-6">
         <h4 class="mb-4">专属匹配问卷</h4>
         <p class="text-sm text-gray-600 mb-4">完善你的个人资料，获得更精准的匹配推荐</p>
@@ -139,7 +148,7 @@
           <span class="text-xs text-gray-500">基于问卷匹配</span>
         </div>
         
-        <div class="space-y-3">
+        <div class="space-y-3 high-match-scroll">
           <div 
             v-for="user in highMatchUsers" 
             :key="user.id"
@@ -224,12 +233,12 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { getUsersWithQuestionnaire } from '@/api/user'
 import { getQuestionnaire, getPublicQuestionnaire } from '@/api/questionnaire'
 import { getMatchRecommendations } from '@/api/match'
-import { sendLikeNotification, cancelLikeNotification } from '@/api/likes'
+import { sendLikeNotification, cancelLikeNotification, getSentLikes } from '@/api/likes'
 import { useAuthStore } from '@/stores/auth'
 
 const router = useRouter()
@@ -251,6 +260,44 @@ const currentIndex = ref(0)
 
 // 跟踪每个用户的喜欢状态
 const likedUsers = ref(new Set())
+
+// 保存喜欢标记到 localStorage（用于聊天页面显示爱心）
+const LIKE_FLAG_KEY = "liked_users_list"
+function saveLikeFlag(userId) {
+  if (!userId) return
+  try {
+    const flags = loadLikeFlags()
+    flags[String(userId)] = true
+    localStorage.setItem(LIKE_FLAG_KEY, JSON.stringify(flags))
+  } catch (e) {
+    console.warn("保存喜欢标记失败:", e)
+  }
+}
+
+// 移除喜欢标记
+function removeLikeFlag(userId) {
+  if (!userId) return
+  try {
+    const flags = loadLikeFlags()
+    delete flags[String(userId)]
+    localStorage.setItem(LIKE_FLAG_KEY, JSON.stringify(flags))
+  } catch (e) {
+    console.warn("移除喜欢标记失败:", e)
+  }
+}
+
+// 加载喜欢标记
+function loadLikeFlags() {
+  try {
+    const raw = localStorage.getItem(LIKE_FLAG_KEY)
+    if (!raw) return {}
+    const parsed = JSON.parse(raw)
+    return parsed && typeof parsed === "object" ? parsed : {}
+  } catch (e) {
+    console.warn("读取喜欢标记失败:", e)
+    return {}
+  }
+}
 
 // 计算当前匹配对象
 const currentMatch = computed(() => {
@@ -414,12 +461,29 @@ const likeUser = async () => {
       await cancelLikeNotification(userId)
       likedUsers.value.delete(userId)
       console.log('✅ 取消喜欢用户:', currentMatch.value.name)
+      
+      // 移除爱心标记（从 localStorage 中删除）
+      removeLikeFlag(userId)
+      
+      // 通知聊天页面更新（通过事件或直接更新）
+      // 如果用户在聊天页面，需要更新聊天列表中的 isFromMatch 状态
+      window.dispatchEvent(new CustomEvent('like-status-changed', { 
+        detail: { userId, isLiked: false } 
+      }))
     } else {
       // 添加喜欢
       console.log('正在发送喜欢:', userId)
       await sendLikeNotification(userId)
       likedUsers.value.add(userId)
       console.log('✅ 喜欢用户:', currentMatch.value.name)
+      
+      // 添加爱心标记（保存到 localStorage）
+      saveLikeFlag(userId)
+      
+      // 通知聊天页面更新
+      window.dispatchEvent(new CustomEvent('like-status-changed', { 
+        detail: { userId, isLiked: true } 
+      }))
     }
   } catch (error) {
     console.error('❌ 喜欢操作失败:', error)
@@ -461,11 +525,10 @@ const startChat = () => {
   }
 
   // 跳转到聊天页并携带 userId，ChatPage 会根据该参数创建/选择会话
-  // 标记为来自匹配列表
+  // 不再标记为来自匹配列表，只有点击喜欢后才会显示爱心
   router.push({
     name: 'chat',
-    params: { userId: targetUserId },
-    query: { fromMatch: 'true' }
+    params: { userId: targetUserId }
   })
 }
 
@@ -916,13 +979,76 @@ const loadHighMatchUsers = async () => {
   }
 }
 
+// 加载已喜欢的用户列表
+const loadLikedUsers = async () => {
+  try {
+    console.log('开始加载已喜欢的用户列表...')
+    const response = await getSentLikes(1, 100) // 获取前100个已喜欢的用户
+    // 后端返回的数据结构：R.ok(sentLikes)，经过request拦截器处理后直接返回数组
+    const likes = Array.isArray(response) ? response : (response?.data || [])
+    
+    console.log('后端返回的喜欢列表数据:', likes)
+    
+    // 提取所有已喜欢用户的ID
+    // 后端返回的字段名是 to_user_id（下划线命名）
+    const likedUserIds = new Set()
+    if (Array.isArray(likes)) {
+      likes.forEach(like => {
+        // 兼容多种可能的字段名：to_user_id, targetUserId, userId, id
+        const userId = like.to_user_id || like.targetUserId || like.userId || like.id
+        if (userId) {
+          likedUserIds.add(userId)
+          // 同时保存到 localStorage，用于聊天页面显示爱心
+          saveLikeFlag(userId)
+          console.log('找到已喜欢的用户ID:', userId)
+        }
+      })
+    }
+    
+    // 更新本地状态
+    likedUsers.value = likedUserIds
+    console.log('✅ 已加载已喜欢的用户列表，数量:', likedUserIds.size, '用户ID列表:', Array.from(likedUserIds))
+  } catch (error) {
+    console.error('❌ 加载已喜欢的用户列表失败:', error)
+    // 如果API不存在或失败，不影响其他功能
+  }
+}
+
 // 页面加载时获取匹配用户 & 高匹配度推荐
 onMounted(async () => {
   // 先检查用户是否填写过问卷
   await checkUserQuestionnaire()
   
+  // 加载已喜欢的用户列表（从数据库恢复状态）
+  await loadLikedUsers()
+  
   // 加载今日推荐（无论是否填写问卷都可以看）
   loadMatchedUsers()
+  
+  // 监听喜欢状态变化事件（从聊天页面触发）
+  const handleLikeStatusChange = (event) => {
+    const { userId, isLiked } = event.detail;
+    console.log('匹配页面收到喜欢状态变化事件:', { userId, isLiked });
+    
+    // 更新 likedUsers Set
+    if (isLiked) {
+      likedUsers.value.add(userId);
+      // 保存到 localStorage
+      saveLikeFlag(userId);
+    } else {
+      likedUsers.value.delete(userId);
+      // 从 localStorage 移除
+      removeLikeFlag(userId);
+    }
+    
+    console.log('✅ 匹配页面已更新喜欢状态，当前用户ID:', userId, '是否喜欢:', isLiked);
+  };
+  window.addEventListener('like-status-changed', handleLikeStatusChange);
+  
+  // 清理事件监听器
+  onUnmounted(() => {
+    window.removeEventListener('like-status-changed', handleLikeStatusChange);
+  });
   
   // 只有填写过问卷才加载高匹配度推荐
   if (hasQuestionnaire.value) {
@@ -978,5 +1104,30 @@ onMounted(async () => {
 
 .animate-fade-in {
   animation: fade-in 0.3s ease-out;
+}
+
+/* 高匹配度推荐滚动区域 */
+.high-match-scroll {
+  max-height: 500px;
+  overflow-y: auto;
+  padding-right: 8px;
+}
+
+.high-match-scroll::-webkit-scrollbar {
+  width: 6px;
+}
+
+.high-match-scroll::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 3px;
+}
+
+.high-match-scroll::-webkit-scrollbar-thumb {
+  background: rgba(139, 92, 246, 0.5);
+  border-radius: 3px;
+}
+
+.high-match-scroll::-webkit-scrollbar-thumb:hover {
+  background: rgba(139, 92, 246, 0.7);
 }
 </style>

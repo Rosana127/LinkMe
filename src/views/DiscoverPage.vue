@@ -1,7 +1,5 @@
 <template>
   <div class="explore-page">
-    <h1 class="page-title">Explore</h1>
-    
     <!-- toast 提示 -->
     <div v-if="showToast" class="toast">{{ toastText }}</div>
     
@@ -772,20 +770,12 @@ function handleClickOutside(event) {
   background: #e0e0e0;
 }
 
-/* 固定头部 */
+/* 头部区域，跟随 main-content 宽度，不再脱离文档流 */
 .category-search-container {
-  position: fixed;
-  top: 0;
-  left: 280px;
-  right: 0;
-  width: calc(100% - 280px);
-  z-index: 100;
-  background-color: transparent;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 15px 0;
-  box-shadow: none;
+  padding: 15px 40px;
 }
 
 .categories {
@@ -849,10 +839,10 @@ function handleClickOutside(event) {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
   gap: 20px;
-  margin-top: 100px;
+  margin-top: 40px;
   padding-bottom: 40px;
-  padding-left: 0;
-  padding-right: 0;
+  padding-left: 40px;
+  padding-right: 40px;
 }
 
 .post-card {

@@ -347,7 +347,9 @@ async function toggleAI() {
     // 简单回退：不改变本地状态
   }
 }
-onMounted(loadAIStatus)
+
+// 保存事件处理函数引用，以便在 onUnmounted 中清理
+let likeStatusChangeHandler = null
 
 // 主题选择相关
 const showThemeMenu = ref(false)
@@ -381,12 +383,34 @@ function handleClickOutside(event) {
 }
 
 onMounted(() => {
+  // 加载AI状态
+  loadAIStatus()
+  
+  // 主题相关初始化
   document.addEventListener('click', handleClickOutside)
   currentTheme.value = getCurrentTheme()
+  
+  // 监听喜欢状态变化事件（从匹配页面或聊天页面触发）
+  likeStatusChangeHandler = (event) => {
+    const { userId, isLiked } = event.detail;
+    console.log('设置页面收到喜欢状态变化事件:', { userId, isLiked });
+    
+    // 如果设置页面有显示喜欢状态的地方，可以在这里更新
+    // 例如：如果有显示已喜欢用户列表，可以在这里刷新
+    // 目前设置页面没有显示喜欢状态，但保留事件监听以便将来扩展
+    
+    // 如果需要，可以触发页面刷新或更新相关状态
+    // 例如：如果设置了显示已喜欢用户列表，可以在这里调用刷新函数
+  };
+  window.addEventListener('like-status-changed', likeStatusChangeHandler);
 })
 
 onUnmounted(() => {
   document.removeEventListener('click', handleClickOutside)
+  // 清理喜欢状态变化事件监听器
+  if (likeStatusChangeHandler) {
+    window.removeEventListener('like-status-changed', likeStatusChangeHandler);
+  }
 })
 
 // 小函数：尝试从 store 或 token 中获得 userId
@@ -678,8 +702,6 @@ const handleLogout = () => {
 <style scoped>
 .settings-page {
   min-height: 100vh;
-  background-color: #ffffff;
-  color: #333333;
   padding: 20px;
 }
 

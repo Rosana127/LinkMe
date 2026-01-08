@@ -1734,3 +1734,94 @@ export default {
   transition-duration: 150ms;
 }
 </style>
+
+<style>
+/* 深色主题下问卷页面的文字颜色 */
+.app-container.theme-dark .min-h-screen h1,
+.app-container.theme-dark .min-h-screen h2,
+.app-container.theme-dark .min-h-screen h3,
+.app-container.theme-dark .min-h-screen h4 {
+  color: #f9fafb !important;
+}
+
+.app-container.theme-dark .min-h-screen .text-gray-900,
+.app-container.theme-dark .min-h-screen .text-gray-700,
+.app-container.theme-dark .min-h-screen .text-gray-600 {
+  color: #e5e7eb !important;
+}
+
+.app-container.theme-dark .min-h-screen .text-gray-500,
+.app-container.theme-dark .min-h-screen .text-gray-400 {
+  color: #9ca3af !important;
+}
+
+.app-container.theme-dark .min-h-screen .font-medium {
+  color: #f3f4f6 !important;
+}
+
+.app-container.theme-dark .min-h-screen .bg-white {
+  background-color: #1f2937 !important;
+  border-color: #374151 !important;
+}
+
+.app-container.theme-dark .min-h-screen .bg-gray-50 {
+  background-color: #111827 !important;
+}
+
+.app-container.theme-dark .min-h-screen .bg-gray-200 {
+  background-color: #374151 !important;
+}
+
+.app-container.theme-dark .min-h-screen .border-gray-200,
+.app-container.theme-dark .min-h-screen .border-gray-300 {
+  border-color: #4b5563 !important;
+}
+
+.app-container.theme-dark .min-h-screen .hover\:bg-gray-50:hover {
+  background-color: #1f2937 !important;
+}
+
+.app-container.theme-dark .min-h-screen .bg-purple-50 {
+  background-color: rgba(139, 92, 246, 0.2) !important;
+  border-color: rgba(139, 92, 246, 0.4) !important;
+}
+
+.app-container.theme-dark .min-h-screen .bg-green-100 {
+  background-color: rgba(34, 197, 94, 0.2) !important;
+}
+
+.app-container.theme-dark .min-h-screen .bg-red-50 {
+  background-color: rgba(239, 68, 68, 0.2) !important;
+  border-color: rgba(239, 68, 68, 0.4) !important;
+}
+
+.app-container.theme-dark .min-h-screen .bg-blue-50 {
+  background-color: rgba(59, 130, 246, 0.2) !important;
+  border-color: rgba(59, 130, 246, 0.4) !important;
+}
+
+.app-container.theme-dark .min-h-screen .bg-green-50 {
+  background-color: rgba(34, 197, 94, 0.2) !important;
+  border-color: rgba(34, 197, 94, 0.4) !important;
+}
+
+.app-container.theme-dark .min-h-screen select {
+  background-color: #1f2937 !important;
+  color: #e5e7eb !important;
+  border-color: #4b5563 !important;
+}
+
+.app-container.theme-dark .min-h-screen textarea {
+  background-color: #1f2937 !important;
+  color: #e5e7eb !important;
+  border-color: #4b5563 !important;
+}
+
+.app-container.theme-dark .min-h-screen textarea::placeholder {
+  color: #6b7280 !important;
+}
+
+.app-container.theme-dark .min-h-screen .bg-gray-100 {
+  background-color: #374151 !important;
+}
+</style>

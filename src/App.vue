@@ -20,7 +20,36 @@
           
           <!-- 右侧栏 - 根据页面显示不同内容 -->
           <div class="right-sidebar" v-if="showRightSidebar">
-            <!-- 右侧栏内容已移除 -->
+            <div class="creators-card">
+              <h3 class="creators-title">Top Creators</h3>
+              <ul class="creators-list">
+                <li class="creator-item">
+                  <a href="https://github.com/erikLukin" target="_blank" rel="noopener noreferrer">
+                    erikLukin
+                  </a>
+                </li>
+                <li class="creator-item">
+                  <a href="https://github.com/Rosana127" target="_blank" rel="noopener noreferrer">
+                    Rosana127
+                  </a>
+                </li>
+                <li class="creator-item">
+                  <a href="https://github.com/Helina-cloud" target="_blank" rel="noopener noreferrer">
+                    Helina-cloud
+                  </a>
+                </li>
+                <li class="creator-item">
+                  <a href="https://github.com/LinQsse" target="_blank" rel="noopener noreferrer">
+                    LinQsse
+                  </a>
+                </li>
+                <li class="creator-item">
+                  <a href="https://github.com/ahzlll" target="_blank" rel="noopener noreferrer">
+                    ahzlll
+                  </a>
+                </li>
+              </ul>
+            </div>
           </div>
         </div>
       </main>
@@ -29,7 +58,7 @@
 </template>
 
 <script setup>
-import { computed, ref, onMounted, watch } from 'vue'
+import { computed, onMounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import Sidebar from './components/Sidebar.vue'
@@ -74,14 +103,18 @@ watch(() => route.name, () => {
 .app-container {
   display: flex;
   min-height: 100vh;
+  width: 100%;
   background-color: #ffffff;
+  padding-left: 280px;
+  box-sizing: border-box;
 }
 
 .main-content {
   flex: 1;
-  padding: 20px 20px 20px 40px;
-  margin-left: 260px;
+  padding: 20px;
   background-color: #ffffff;
+  box-sizing: border-box;
+  min-width: 0;
 }
 
 .content-wrapper {
@@ -102,6 +135,47 @@ watch(() => route.name, () => {
   top: 20px;
   align-self: flex-start;
   height: calc(100vh - 40px);
+}
+
+.creators-card {
+  background-color: #1a1a1a;
+  border-radius: 12px;
+  padding: 16px;
+  border: 1px solid #333333;
+}
+
+.creators-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #ffffff;
+  margin: 0 0 12px 0;
+}
+
+.creators-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.creator-item a {
+  display: block;
+  padding: 8px 10px;
+  border-radius: 8px;
+  color: #e5e7eb;
+  font-size: 14px;
+  text-decoration: none;
+  background-color: #111827;
+  border: 1px solid #1f2937;
+  transition: background-color 0.2s, transform 0.2s, border-color 0.2s;
+}
+
+.creator-item a:hover {
+  background-color: #4b5563;
+  border-color: #8b5cf6;
+  transform: translateY(-1px);
 }
 
 .stat-card {

@@ -24,32 +24,259 @@ body {
   z-index: 1;
 }
 
-/* 主题背景样式 - 应用到主内容区域（.main-content） */
-.main-content.has-theme-bg {
-  position: relative;
-  min-height: 100vh;
+/* 黑白主题样式（不再使用背景图片） */
+/* 深色主题：深色背景 + 浅色文字 */
+.app-container.theme-dark.has-theme-bg-color {
+  background-color: var(--theme-bg-color) !important;
+  color: #e5e7eb;
 }
 
-.main-content.has-theme-bg::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background-image: var(--theme-bg-image);
-  background-size: cover;
-  background-position: center;
-  background-repeat: no-repeat;
-  background-attachment: fixed;
-  opacity: 0.45;
-  z-index: 0;
-  pointer-events: none;
+.app-container.theme-dark.has-theme-bg-color .main-content {
+  background-color: transparent;
 }
 
-.main-content.has-theme-bg > * {
-  position: relative;
-  z-index: 1;
+/* 浅色主题：浅色背景 + 深色文字（保持原来的样式） */
+.app-container.theme-light.has-theme-bg-color,
+.app-container.has-theme-bg-color:not(.theme-dark) {
+  background-color: var(--theme-bg-color) !important;
+  color: #333333;
+}
+
+.app-container.theme-light.has-theme-bg-color .main-content,
+.app-container.has-theme-bg-color:not(.theme-dark) .main-content {
+  background-color: transparent;
+}
+
+/* 深色主题下，统一卡片/帖子为深灰色，不再使用纯白背景 */
+.app-container.theme-dark .post-card,
+.app-container.theme-dark .profile-card,
+.app-container.theme-dark .card {
+  background-color: #1f2937 !important;
+  border-color: #374151 !important;
+  color: #e5e7eb;
+}
+
+/* 覆盖部分 Tailwind 的白色背景工具类 */
+.app-container.theme-dark .bg-white {
+  background-color: #1f2937 !important;
+}
+
+/* 转换 bg-white/40 为浅灰半透明，而不是接近纯白 */
+.app-container.theme-dark .bg-white\/40 {
+  background-color: rgba(31, 41, 55, 0.092) !important;
+}
+
+/* 深色主题下，转换 bg-white/30 为深灰半透明 */
+.app-container.theme-dark .bg-white\/30 {
+  background-color: rgba(31, 41, 55, 0.839) !important;
+  color: #e5e7eb !important;
+}
+
+/* 浅色主题下，使用灰色背景，确保在白色背景上可见 */
+.app-container.theme-light .bg-white\/30,
+.app-container:not(.theme-dark) .bg-white\/30 {
+  background-color: rgba(229, 231, 235, 0.8) !important;
+  color: #333333 !important;
+  border: 1px solid rgba(209, 213, 219, 0.5) !important;
+}
+
+/* 深色主题下帖子详情页面配色 */
+.app-container.theme-dark .post-detail-page {
+  color: #e5e7eb;
+}
+
+.app-container.theme-dark .post-detail-card {
+  background-color: #111827;
+  border-color: #1f2937;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
+}
+
+.app-container.theme-dark .post-detail-card .username,
+.app-container.theme-dark .post-detail-card .post-title,
+.app-container.theme-dark .post-detail-card .comment-author {
+  color: #f9fafb;
+}
+
+.app-container.theme-dark .post-detail-card .user-handle,
+.app-container.theme-dark .post-detail-card .time,
+.app-container.theme-dark .post-detail-card .location,
+.app-container.theme-dark .post-detail-card .comment-time {
+  color: #9ca3af;
+}
+
+.app-container.theme-dark .post-detail-card .caption,
+.app-container.theme-dark .post-detail-card .comment-text {
+  color: #e5e7eb;
+}
+
+.app-container.theme-dark .post-detail-card .back-button {
+  background-color: #111827;
+  color: #e5e7eb;
+  border-color: #374151;
+}
+
+.app-container.theme-dark .post-detail-card .back-button:hover {
+  background-color: #1f2937;
+}
+
+.app-container.theme-dark .post-detail-card .like-btn,
+.app-container.theme-dark .post-detail-card .comment-btn,
+.app-container.theme-dark .post-detail-card .fav-btn {
+  background-color: #111827;
+  border-color: #374151;
+  color: #e5e7eb;
+}
+
+.app-container.theme-dark .post-detail-card .like-btn.liked,
+.app-container.theme-dark .post-detail-card .fav-btn.favorited {
+  background-color: #8b5cf6;
+  border-color: #a855f7;
+  color: #f9fafb;
+}
+
+.app-container.theme-dark .post-detail-card .user-menu {
+  background-color: #111827;
+  border-color: #374151;
+}
+
+.app-container.theme-dark .post-detail-card .user-menu::before {
+  border-color: transparent transparent #111827 transparent;
+}
+
+.app-container.theme-dark .post-detail-card .menu-item {
+  color: #e5e7eb;
+}
+
+.app-container.theme-dark .post-detail-card .menu-item:hover {
+  background-color: #1f2937;
+}
+
+.app-container.theme-dark .post-detail-card .comment-quote {
+  background-color: #111827;
+  border-left-color: #374151;
+}
+
+.app-container.theme-dark .post-detail-card input[type="text"],
+.app-container.theme-dark .post-detail-card input[type="search"],
+.app-container.theme-dark .post-detail-card textarea {
+  background-color: #111827;
+  border-color: #374151;
+  color: #e5e7eb;
+}
+
+.app-container.theme-dark .post-detail-card input::placeholder,
+.app-container.theme-dark .post-detail-card textarea::placeholder {
+  color: #6b7280;
+}
+
+/* Explore 列表中文本在深色主题下增强对比 */
+.app-container.theme-dark .posts-grid .username,
+.app-container.theme-dark .posts-grid .post-caption {
+  color: #f9fafb;
+}
+
+.app-container.theme-dark .posts-grid .user-handle,
+.app-container.theme-dark .posts-grid .timestamp,
+.app-container.theme-dark .posts-grid .location {
+  color: #9ca3af;
+}
+
+.app-container.theme-dark .posts-grid .action-btn {
+  color: #d1d5db;
+}
+
+.app-container.theme-dark .posts-grid .action-btn:hover {
+  color: #ffffff;
+}
+
+/* 深色主题下 Sidebar 配色，参考 Messages 界面 */
+.app-container.theme-dark .sidebar {
+  background-color: #111827 !important;
+  color: #e5e7eb !important;
+  border-right-color: #1f2937 !important;
+}
+
+.app-container.theme-dark .sidebar .logo-text {
+  color: #f9fafb !important;
+}
+
+.app-container.theme-dark .sidebar .user-section {
+  background-color: #1f2937 !important;
+}
+
+.app-container.theme-dark .sidebar .user-name {
+  color: #f9fafb !important;
+}
+
+.app-container.theme-dark .sidebar .user-handle {
+  color: #9ca3af !important;
+}
+
+.app-container.theme-dark .sidebar .nav-link {
+  color: #d1d5db !important;
+}
+
+.app-container.theme-dark .sidebar .nav-link:hover {
+  background-color: #4b5563 !important;
+  color: #ffffff !important;
+}
+
+.app-container.theme-dark .sidebar .nav-link.active {
+  background-color: #1f2937 !important;
+  color: #f9fafb !important;
+}
+
+.app-container.theme-dark .sidebar .logout-btn {
+  color: #d1d5db !important;
+}
+
+.app-container.theme-dark .sidebar .logout-btn:hover {
+  background-color: #1f2937 !important;
+  color: #f9fafb !important;
+}
+
+/* 深色主题下匹配界面的"上一个"、"下一个"按钮 */
+.app-container.theme-dark .nav-buttons-container button:not(:disabled) {
+  background-color: transparent !important;
+  border-color: #4b5563 !important;
+  color: #e5e7eb !important;
+}
+
+.app-container.theme-dark .nav-buttons-container button:not(:disabled):hover {
+  background-color: #1f2937 !important;
+  border-color: #6b7280 !important;
+  color: #f9fafb !important;
+}
+
+.app-container.theme-dark .nav-buttons-container button:disabled {
+  background-color: #1f2937 !important;
+  border-color: #374151 !important;
+  color: #6b7280 !important;
+}
+
+/* 深色主题下匹配界面的文字颜色 */
+.app-container.theme-dark .match-page .text-gray-700,
+.app-container.theme-dark .match-page .text-gray-600,
+.app-container.theme-dark .match-page .text-gray-900 {
+  color: #e5e7eb !important;
+}
+
+.app-container.theme-dark .match-page .text-gray-500,
+.app-container.theme-dark .match-page .text-gray-400 {
+  color: #9ca3af !important;
+}
+
+.app-container.theme-dark .match-page h4 {
+  color: #f9fafb !important;
+}
+
+/* 深色主题下匹配界面右侧"专属匹配问卷"区域的文字颜色 */
+.app-container.theme-dark .match-page .bg-white\/40 h4 {
+  color: #f9fafb !important;
+}
+
+.app-container.theme-dark .match-page .bg-white\/40 p {
+  color: #d1d5db !important;
 }
 
 /* 滚动条样式 */
@@ -58,7 +285,7 @@ body {
 }
 
 ::-webkit-scrollbar-track {
-  background: #f5f5f5;
+  background: transparent;
 }
 
 ::-webkit-scrollbar-thumb {

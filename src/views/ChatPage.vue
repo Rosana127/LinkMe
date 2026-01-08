@@ -299,6 +299,20 @@
                 @click.stop
               >
                 <button
+                  v-if="selectedChat && selectedChat.otherId"
+                  @click="toggleLike"
+                  class="w-full text-left px-4 py-3 hover:bg-gray-700 transition-colors text-white text-sm flex items-center"
+                >
+                  <span
+                    class="iconify mr-2"
+                    :data-icon="
+                      isLiked ? 'mdi:heart' : 'mdi:heart-outline'
+                    "
+                    data-inline="false"
+                  ></span>
+                  {{ isLiked ? "取消喜欢" : "喜欢" }}
+                </button>
+                <button
                   @click="toggleFollow"
                   class="w-full text-left px-4 py-3 hover:bg-gray-700 transition-colors text-white text-sm flex items-center"
                 >
@@ -513,6 +527,7 @@ import { useAuthStore } from "@/stores/auth";
 import * as chatApi from "@/api/chat";
 import * as userApi from "@/api/user";
 import * as aiApi from "@/api/ai";
+import { sendLikeNotification, cancelLikeNotification } from '@/api/likes';
 
 // ========== 模块级 WebSocket 单例管理 ==========
 // 将 WebSocket 放在模块级别，避免 HMR 时创建多个实例
@@ -546,6 +561,13 @@ const messagesContainer = ref(null);
 const showOptionsMenu = ref(false); // 控制下拉菜单显示
 const isFollowing = ref(false); // 当前是否已关注对方
 const isBlocking = ref(false); // 当前是否已屏蔽对方
+
+// 检查当前聊天对象是否已喜欢
+const isLiked = computed(() => {
+  if (!selectedChat.value?.otherId) return false;
+  const likeFlags = loadLikeFlags();
+  return likeFlags[String(selectedChat.value.otherId)] ? true : false;
+});
 
 // WebSocket连接状态（响应式）
 const isWebSocketConnected = ref(false);
@@ -1006,6 +1028,7 @@ let aiDebounceTimer = null;
 
 // 本地存储匹配来源标记的 key
 const MATCH_FROM_LOCAL_KEY = "match_from_list";
+const LIKE_FLAG_KEY = "liked_users_list";
 
 // 读取本地的匹配标记（按对方 userId 存）
 function loadMatchFlags() {
@@ -1030,6 +1053,19 @@ function saveMatchFlag(userId) {
     localStorage.setItem(MATCH_FROM_LOCAL_KEY, JSON.stringify(flags));
   } catch (e) {
     console.warn("保存匹配标记失败:", e);
+  }
+}
+
+// 读取本地的喜欢标记（用于显示爱心图标）
+function loadLikeFlags() {
+  try {
+    const raw = localStorage.getItem(LIKE_FLAG_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch (e) {
+    console.warn("读取喜欢标记失败:", e);
+    return {};
   }
 }
 watch(() => selectedChat.value?.messages, (newVal) => {
@@ -1064,10 +1100,10 @@ function mapConversationToChat(conv) {
     conv.last_message_time ??
     conv.updatedAt ??
     conv.updated_at;
-  // 从本地标记中恢复是否来自匹配列表
-  const localMatchFlags = loadMatchFlags();
-  const isFromMatchLocal =
-    otherId && localMatchFlags[String(otherId)] ? true : false;
+  // 检查是否已喜欢该用户（用于显示爱心图标）
+  // 只根据喜欢状态判断，不再区分是否来自匹配界面
+  const likeFlags = loadLikeFlags();
+  const isLiked = otherId && likeFlags[String(otherId)] ? true : false;
 
   return {
     id,
@@ -1081,7 +1117,8 @@ function mapConversationToChat(conv) {
     otherId,
     isMuted: conv.isMuted ?? false,
     isPinned: conv.isPinned ?? false,
-    isFromMatch: conv.isFromMatch ?? isFromMatchLocal ?? false,
+    // 只根据是否已喜欢来判断是否显示爱心
+    isFromMatch: isLiked,
   };
 }
 
@@ -1093,6 +1130,14 @@ async function loadConversations() {
     else if (res && Array.isArray(res.data)) arr = res.data;
     else arr = [];
     chats.value = arr.map(mapConversationToChat);
+    // 确保所有聊天的 isFromMatch 状态都根据当前喜欢状态更新
+    const likeFlags = loadLikeFlags();
+    chats.value.forEach(chat => {
+      const otherId = chat.otherId || chat.otherUserId;
+      if (otherId) {
+        chat.isFromMatch = likeFlags[String(otherId)] ? true : false;
+      }
+    });
     // 补全会话的参与者信息（如果后端 conversations 列表未包含），逐条请求详情并更新
     for (let i = 0; i < chats.value.length; i++) {
       const c = chats.value[i];
@@ -1110,6 +1155,11 @@ async function loadConversations() {
           c.name = other.nickname || other.username || data.name || c.name;
           c.avatar = other.avatarUrl || other.avatar || c.avatar;
           c.otherId = other.id || other.userId || other.user_id || c.otherId;
+          // 更新 isFromMatch 状态（根据喜欢状态）
+          if (c.otherId) {
+            const likeFlags = loadLikeFlags();
+            c.isFromMatch = likeFlags[String(c.otherId)] ? true : false;
+          }
         } catch (err) {
           // ignore per-item failure
         }
@@ -1263,18 +1313,21 @@ const createOrSelectChatByUserId = async (userId, isFromMatch = false) => {
 
   if (existingChat) {
     // 如果已存在，直接选择该聊天
-    if (isFromMatch) {
-      existingChat.isFromMatch = true;
-      // 持久化到本地，刷新后还能恢复
-      saveMatchFlag(existingChat.otherId || targetUserId);
-    }
+    // 根据是否已喜欢来判断是否显示爱心（不再使用 isFromMatch 参数）
+    const likeFlags = loadLikeFlags();
+    const otherId = existingChat.otherId || targetUserId;
+    const isLiked = otherId && likeFlags[String(otherId)] ? true : false;
+    existingChat.isFromMatch = isLiked;
+    
     console.log(
       "找到已存在的聊天，ID:",
       existingChat.id,
       "otherId:",
       existingChat.otherId,
       "isFromMatch:",
-      existingChat.isFromMatch
+      existingChat.isFromMatch,
+      "isLiked:",
+      isLiked
     );
     await selectChat(existingChat.id);
     return;
@@ -1323,10 +1376,11 @@ const createOrSelectChatByUserId = async (userId, isFromMatch = false) => {
       // 如果响应中包含了完整的会话数据，直接添加到聊天列表
       if (conversationData) {
         const newChat = mapConversationToChat(conversationData);
-        if (isFromMatch) {
-          newChat.isFromMatch = true;
-          saveMatchFlag(newChat.otherId || targetUserId);
-        }
+        // 根据是否已喜欢来判断是否显示爱心（不再使用 isFromMatch 参数）
+        const likeFlags = loadLikeFlags();
+        const otherId = newChat.otherId || targetUserId;
+        const isLiked = otherId && likeFlags[String(otherId)] ? true : false;
+        newChat.isFromMatch = isLiked;
         console.log("映射后的新聊天对象:", newChat);
 
         // 检查是否已存在（避免重复）
@@ -1337,9 +1391,12 @@ const createOrSelectChatByUserId = async (userId, isFromMatch = false) => {
         } else {
           // 如果已存在，更新标识
           const existingChat = chats.value.find((c) => c.id === newChat.id);
-          if (existingChat && isFromMatch) {
-            existingChat.isFromMatch = true;
-            saveMatchFlag(existingChat.otherId || targetUserId);
+          if (existingChat) {
+            // 根据是否已喜欢来判断是否显示爱心
+            const likeFlags = loadLikeFlags();
+            const otherId = existingChat.otherId || targetUserId;
+            const isLiked = otherId && likeFlags[String(otherId)] ? true : false;
+            existingChat.isFromMatch = isLiked;
           }
         }
 
@@ -1372,10 +1429,11 @@ const createOrSelectChatByUserId = async (userId, isFromMatch = false) => {
         });
 
         if (newChat) {
-          if (isFromMatch) {
-            newChat.isFromMatch = true;
-            saveMatchFlag(newChat.otherId || targetUserId);
-          }
+          // 根据是否已喜欢来判断是否显示爱心
+          const likeFlags = loadLikeFlags();
+          const otherId = newChat.otherId || targetUserId;
+          const isLiked = otherId && likeFlags[String(otherId)] ? true : false;
+          newChat.isFromMatch = isLiked;
           console.log("选择新创建的聊天，ID:", newChat.id);
           await selectChat(newChat.id);
         } else {
@@ -1385,11 +1443,13 @@ const createOrSelectChatByUserId = async (userId, isFromMatch = false) => {
             conversationId
           );
           await selectChat(conversationId);
-          // 如果是从匹配列表来的，更新标识
+          // 根据是否已喜欢来判断是否显示爱心
           const chatById = chats.value.find((c) => c.id === conversationId);
-          if (chatById && isFromMatch) {
-            chatById.isFromMatch = true;
-            saveMatchFlag(chatById.otherId || targetUserId);
+          if (chatById) {
+            const likeFlags = loadLikeFlags();
+            const otherId = chatById.otherId || targetUserId;
+            const isLiked = otherId && likeFlags[String(otherId)] ? true : false;
+            chatById.isFromMatch = isLiked;
           }
         }
       }
@@ -1413,11 +1473,11 @@ const createOrSelectChatByUserId = async (userId, isFromMatch = false) => {
       );
     });
     if (existingChatAfterReload) {
-      // 如果是从匹配列表来的，更新标识
-      if (isFromMatch) {
-        existingChatAfterReload.isFromMatch = true;
-        saveMatchFlag(existingChatAfterReload.otherId || targetUserId);
-      }
+      // 根据是否已喜欢来判断是否显示爱心
+      const likeFlags = loadLikeFlags();
+      const otherId = existingChatAfterReload.otherId || targetUserId;
+      const isLiked = otherId && likeFlags[String(otherId)] ? true : false;
+      existingChatAfterReload.isFromMatch = isLiked;
       console.log("重新加载后找到已存在的聊天:", existingChatAfterReload.id);
       await selectChat(existingChatAfterReload.id);
     } else {
@@ -1517,6 +1577,82 @@ const sendMessage = async () => {
 
 const useAISuggestion = () => {
   newMessage.value = aiSuggestion.value;
+};
+
+// 切换喜欢状态
+const toggleLike = async () => {
+  if (!selectedChat.value?.otherId) return;
+  const userId = selectedChat.value.otherId;
+  const currentlyLiked = isLiked.value;
+  
+  try {
+    if (currentlyLiked) {
+      // 取消喜欢
+      await cancelLikeNotification(userId);
+      // 从 localStorage 移除标记
+      const flags = loadLikeFlags();
+      delete flags[String(userId)];
+      localStorage.setItem(LIKE_FLAG_KEY, JSON.stringify(flags));
+      
+      // 更新聊天列表中的 isFromMatch 状态
+      const chatInList = chats.value.find((c) => c.otherId === userId || c.otherUserId === userId);
+      if (chatInList) {
+        chatInList.isFromMatch = false;
+      }
+      if (selectedChat.value) {
+        selectedChat.value.isFromMatch = false;
+      }
+      
+      // 触发事件通知其他页面（如匹配页面）更新状态
+      window.dispatchEvent(new CustomEvent('like-status-changed', { 
+        detail: { userId, isLiked: false } 
+      }));
+      
+      console.log("取消喜欢成功");
+    } else {
+      // 添加喜欢
+      await sendLikeNotification(userId);
+      // 保存到 localStorage
+      const flags = loadLikeFlags();
+      flags[String(userId)] = true;
+      localStorage.setItem(LIKE_FLAG_KEY, JSON.stringify(flags));
+      
+      // 更新聊天列表中的 isFromMatch 状态
+      const chatInList = chats.value.find((c) => c.otherId === userId || c.otherUserId === userId);
+      if (chatInList) {
+        chatInList.isFromMatch = true;
+      }
+      if (selectedChat.value) {
+        selectedChat.value.isFromMatch = true;
+      }
+      
+      // 触发事件通知其他页面（如匹配页面）更新状态
+      window.dispatchEvent(new CustomEvent('like-status-changed', { 
+        detail: { userId, isLiked: true } 
+      }));
+      
+      console.log("喜欢成功");
+    }
+    showOptionsMenu.value = false;
+  } catch (e) {
+    console.error("喜欢操作失败", e);
+    const errorMessage = e?.message || e?.data?.message || String(e);
+    if (errorMessage.includes('已经发送过喜欢通知') || errorMessage.includes('已经喜欢过')) {
+      // 如果是重复喜欢的错误，直接更新本地状态为已喜欢
+      const flags = loadLikeFlags();
+      flags[String(userId)] = true;
+      localStorage.setItem(LIKE_FLAG_KEY, JSON.stringify(flags));
+      const chatInList = chats.value.find((c) => c.otherId === userId || c.otherUserId === userId);
+      if (chatInList) {
+        chatInList.isFromMatch = true;
+      }
+      if (selectedChat.value) {
+        selectedChat.value.isFromMatch = true;
+      }
+    } else {
+      alert(errorMessage || "操作失败");
+    }
+  }
 };
 
 // 切换关注状态
@@ -1963,18 +2099,50 @@ onMounted(async () => {
 
   // 检查路由参数，如果有 userId，创建或选择对应的聊天
   const userId = route.params.userId;
-  const isFromMatch = route.query.fromMatch === 'true';
+  // 不再使用 fromMatch 参数，爱心图标只根据是否已喜欢来显示
   if (userId) {
-    console.log("从路由参数获取到 userId:", userId, "isFromMatch:", isFromMatch);
+    console.log("从路由参数获取到 userId:", userId);
     // 等待会话列表加载完成后再创建/选择聊天
     await nextTick();
-    await createOrSelectChatByUserId(userId, isFromMatch);
+    await createOrSelectChatByUserId(userId, false);
   }
+
+  // 监听喜欢状态变化事件（从匹配页面或聊天页面触发）
+  const handleLikeStatusChange = (event) => {
+    const { userId, isLiked } = event.detail;
+    console.log('收到喜欢状态变化事件:', { userId, isLiked });
+    
+    // 更新聊天列表中的 isFromMatch 状态
+    const chatInList = chats.value.find((c) => 
+      (c.otherId || c.otherUserId) == userId
+    );
+    if (chatInList) {
+      chatInList.isFromMatch = isLiked;
+      console.log(`✅ 更新聊天 ${chatInList.id} 的喜欢状态:`, isLiked);
+    }
+    
+    // 如果当前选中的聊天就是该用户，也更新状态
+    if (selectedChat.value && (selectedChat.value.otherId || selectedChat.value.otherUserId) == userId) {
+      selectedChat.value.isFromMatch = isLiked;
+      console.log(`✅ 更新当前选中聊天的喜欢状态:`, isLiked);
+    }
+    
+    // 强制触发 Vue 响应式更新
+    nextTick(() => {
+      console.log('Vue 响应式更新完成');
+    });
+  };
+  window.addEventListener('like-status-changed', handleLikeStatusChange);
 
   // 点击页面其他地方关闭下拉菜单
   document.addEventListener("click", closeOptionsMenu);
 
   await loadAIStatus();
+  
+  // 清理事件监听器
+  onUnmounted(() => {
+    window.removeEventListener('like-status-changed', handleLikeStatusChange);
+  });
 });
 
 // 组件卸载时移除事件监听

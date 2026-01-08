@@ -738,10 +738,9 @@ onMounted(async () => {
 
 <style scoped>
 .home-page {
-  max-width: 100%;
-  margin: 0;
   width: 100%;
-  padding-bottom: 30px;
+  box-sizing: border-box;
+  padding: 0 100px 30px;
 }
 
 .page-title {

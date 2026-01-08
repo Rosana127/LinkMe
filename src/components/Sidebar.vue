@@ -38,42 +38,42 @@
         :class="['nav-link', { active: $route.name === 'discover' }]"
       >
         <span class="iconify" data-icon="mdi:compass-outline" data-inline="false"></span>
-        <span>Explore</span>
+        <span>发现</span>
       </button>
       <button 
         @click="navigateTo('match')" 
         :class="['nav-link', { active: $route.name === 'match' }]"
       >
         <span class="iconify" data-icon="mdi:account-group-outline" data-inline="false"></span>
-        <span>People</span>
+        <span>匹配</span>
       </button>
       <button 
         @click="navigateTo('chat')" 
         :class="['nav-link', { active: $route.name === 'chat' }]"
       >
         <span class="iconify" data-icon="mdi:message-outline" data-inline="false"></span>
-        <span>Messages</span>
+        <span>聊天</span>
       </button>
       <button 
         @click="navigateTo('home')" 
         :class="['nav-link', { active: $route.name === 'home' }]"
       >
         <span class="iconify" data-icon="mdi:home-outline" data-inline="false"></span>
-        <span>Home</span>
+        <span>主页</span>
       </button>
       <button 
         @click="navigateTo('create')" 
         :class="['nav-link', { active: $route.name === 'create' }]"
       >
         <span class="iconify" data-icon="mdi:plus-circle-outline" data-inline="false"></span>
-        <span>Create Post</span>
+        <span>创建帖子</span>
       </button>
       <button 
         @click="navigateTo('settings')" 
         :class="['nav-link', { active: $route.name === 'settings' }]"
       >
         <span class="iconify" data-icon="mdi:cog-outline" data-inline="false"></span>
-        <span>Settings</span>
+        <span>设置</span>
       </button>
     </div>
     
@@ -81,7 +81,7 @@
     <div class="logout-section" v-if="isAuthenticated">
       <button @click="handleLogout" class="logout-btn">
         <span class="iconify" data-icon="mdi:logout" data-inline="false"></span>
-        <span>Logout</span>
+        <span>登出</span>
       </button>
     </div>
   </aside>
