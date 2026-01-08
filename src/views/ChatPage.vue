@@ -124,7 +124,7 @@
                     {{ chat.name }}
                   </h3>
                   <span class="text-xs text-gray-400 whitespace-nowrap">{{
-                    chat.lastMessageTime
+                    formatTime(chat.lastMessageTime)
                   }}</span>
                 </div>
                 <div class="flex items-center">
@@ -1825,11 +1825,12 @@ const handleWebSocketMessage = async (message) => {
     console.log("🔍 查找会话结果: conversationId=", conversationId, "chatIndex=", chatIndex);
 
     if (chatIndex !== -1) {
+      const chat = chats.value[chatIndex];
       // 更新会话的最后一条消息
-      chats.value[chatIndex].lastMessage = content;
-      chats.value[chatIndex].lastMessageTime = createdAt || new Date().toISOString();
+      chat.lastMessage = content;
+      chat.lastMessageTime = createdAt || new Date().toISOString();
       
-      console.log("✅ 已更新会话最后一条消息:", chats.value[chatIndex].name);
+      console.log("✅ 已更新会话最后一条消息:", chat.name);
 
       // 如果不是当前用户发送的消息，增加未读数
       // 注意：类型转换比较，避免数字和字符串比较失败
@@ -1838,7 +1839,7 @@ const handleWebSocketMessage = async (message) => {
       
       if (!isMyMessage) {
         // 如果当前正在查看这个会话，标记为已读
-        if (selectedChatId.value === chats.value[chatIndex].id) {
+        if (selectedChatId.value === chat.id) {
           // 标记消息为已读
           try {
             await chatApi.markRead(conversationId);
@@ -1847,7 +1848,7 @@ const handleWebSocketMessage = async (message) => {
           }
         } else {
           // 否则增加未读数
-          chats.value[chatIndex].unreadCount = (chats.value[chatIndex].unreadCount || 0) + 1;
+          chat.unreadCount = (chat.unreadCount || 0) + 1;
         }
       }
 
