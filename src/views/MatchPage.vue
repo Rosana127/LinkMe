@@ -654,7 +654,13 @@ const loadMatchedUsers = async () => {
       // 为每个用户获取问卷信息（包括兴趣爱好）
       await loadUserQuestionnaires()
       
-      console.log('格式化后的用户列表（包含问卷信息）:', matches.value)
+      // 使用 Fisher-Yates 洗牌算法随机排序用户列表
+      for (let i = matches.value.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [matches.value[i], matches.value[j]] = [matches.value[j], matches.value[i]];
+      }
+      
+      console.log('格式化并随机排序后的用户列表:', matches.value)
     } else {
       console.log('暂无匹配推荐用户')
       matches.value = [] // 确保为空数组
