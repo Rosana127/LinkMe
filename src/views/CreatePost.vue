@@ -73,7 +73,6 @@
       <div class="manage-tabs">
         <button :class="['manage-tab', { active: managementTab === 'all' }]" @click="managementTab = 'all'">全部笔记 ({{ counts.all }})</button>
         <button :class="['manage-tab', { active: managementTab === 'published' }]" @click="managementTab = 'published'">已发布 ({{ counts.published }})</button>
-        <button :class="['manage-tab', { active: managementTab === 'review' }]" @click="managementTab = 'review'">审核中 ({{ counts.review }})</button>
         <button :class="['manage-tab', { active: managementTab === 'rejected' }]" @click="managementTab = 'rejected'">未通过 ({{ counts.rejected }})</button>
         <button :class="['manage-tab', { active: managementTab === 'drafts' }]" @click="managementTab = 'drafts'">草稿箱 ({{ posts.filter(p=>p.status==='draft').length }})</button>
       </div>
@@ -150,24 +149,29 @@ const LOCAL_POSTS_KEY = (userId) => `posts_user_${userId}`
 
 function normalizeStatus(raw) {
   // common possibilities: status (string), state, reviewStatus, auditStatus, numeric codes
-  if (!raw && raw !== 0) return 'review'
-  // if already a string like 'published','draft','review','rejected'
-  if (typeof raw === 'string') return raw
+  // 默认状态改为 published（已发布），不再使用审核状态
+  if (!raw && raw !== 0) return 'published'
+  // if already a string like 'published','draft','rejected'
+  // 如果后端返回 'review'，也转换为 'published'
+  if (typeof raw === 'string') {
+    if (raw === 'review') return 'published' // 将审核中状态转换为已发布
+    return raw
+  }
   // boolean flags
   if (raw === true) return 'published'
-  if (raw === false) return 'review'
+  if (raw === false) return 'published' // false 也返回已发布
   // numeric codes -> guess mapping
-  // 0: draft, 1: review, 2: published, 3: rejected
+  // 0: draft, 1: review -> published, 2: published, 3: rejected
   if (typeof raw === 'number') {
     switch (raw) {
       case 0: return 'draft'
-      case 1: return 'review'
+      case 1: return 'published' // 审核中状态转换为已发布
       case 2: return 'published'
       case 3: return 'rejected'
-      default: return 'review'
+      default: return 'published' // 默认返回已发布
     }
   }
-  return 'review'
+  return 'published' // 默认返回已发布
 }
 
 function normalizeImages(rawImages) {
@@ -281,13 +285,12 @@ async function hydratePostCovers(list) {
   )
 }
 
-const managementTab = ref('all') // all / published / review / rejected / drafts
+const managementTab = ref('all') // all / published / rejected / drafts
 
 const counts = computed(() => {
   return {
     all: posts.value.filter(p => p.status !== 'draft').length,
     published: posts.value.filter(p => p.status === 'published').length,
-    review: posts.value.filter(p => p.status === 'review').length,
     rejected: posts.value.filter(p => p.status === 'rejected').length
   }
 })
@@ -295,7 +298,6 @@ const counts = computed(() => {
 const filteredPosts = computed(() => {
   if (managementTab.value === 'all') return posts.value.filter(p => p.status !== 'draft')
   if (managementTab.value === 'published') return posts.value.filter(p => p.status === 'published')
-  if (managementTab.value === 'review') return posts.value.filter(p => p.status === 'review')
   if (managementTab.value === 'rejected') return posts.value.filter(p => p.status === 'rejected')
   if (managementTab.value === 'drafts') return posts.value.filter(p => p.status === 'draft')
   return posts.value
@@ -430,7 +432,7 @@ async function publish() {
       content: payload.content,
       tags: payload.tags,
       images: payload.images.map((data, order) => ({ data, order })),
-      status: payload.visibility === 'draft' ? 'draft' : 'review'
+      status: payload.visibility === 'draft' ? 'draft' : 'published'
     }
     // 如果后端保存成功，优先从后端刷新；否则使用本地回退对象并缓存
     try {
@@ -445,7 +447,7 @@ async function publish() {
       }
       message.value = '发布成功！已同步到你的账号'
       activeTab.value = 'manage'
-      managementTab.value = 'all'
+      managementTab.value = 'published' // 直接跳转到已发布标签页
       clearForm()
     } catch (reloadErr) {
       // 如果刷新失败，仍向用户展示成功并保留本地数据
@@ -455,7 +457,7 @@ async function publish() {
       if (userId) localStorage.setItem(LOCAL_POSTS_KEY(userId), JSON.stringify(posts.value))
       message.value = '发布成功（离线缓存），稍后会与服务器同步'
       activeTab.value = 'manage'
-      managementTab.value = 'all'
+      managementTab.value = 'published' // 直接跳转到已发布标签页
       clearForm()
     }
   } catch (err) {
